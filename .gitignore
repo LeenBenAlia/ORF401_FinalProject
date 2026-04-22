@@ -1,0 +1,21 @@
+# Dependencies
+frontend/node_modules/
+backend/.venv/
+backend/venv/
+**/__pycache__/
+*.pyc
+
+# Build / local
+frontend/build/
+.DS_Store
+*.log
+
+# App data (local only)
+backend/uploads/
+backend/exports/
+*.sqlite3
+
+# Env
+.env
+.env.local
+frontend/.env.local
