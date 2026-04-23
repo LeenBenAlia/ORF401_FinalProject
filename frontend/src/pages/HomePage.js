@@ -21,10 +21,10 @@ function HomePage() {
               and see import risk—without the spreadsheet sprawl.
             </p>
             <div className="hero-cta">
-              <Link to="/quotes" className="btn btn--primary">Start with quotes</Link>
-              <Link to="/risk" className="btn btn--hero-secondary">Explore risk view</Link>
+              <Link to="/login" className="btn btn--primary">Log in / sign up</Link>
+              <Link to="/baseline" className="btn btn--hero-secondary">Try product baseline</Link>
             </div>
-            <p className="meta-line">Python-ready data · Excel for everyone · Optional Codespace handoff</p>
+            <p className="meta-line">Example companies: Tesla, SpaceX, Nvidia · Tariff + FX risk split · Global trade map</p>
           </div>
           <div className="hero-panel__visual" aria-hidden>
             <div className="hero-orbit">
@@ -73,10 +73,10 @@ function HomePage() {
       <section className="cta-panel">
         <div>
           <h2>Ready to wire your first batch?</h2>
-          <p>Upload quotes on the next screen or open the risk map to see how a part travels from origin to your line.</p>
+          <p>Upload quotes on the next screen or open the risk map to see how a part travels from origin to your line. Try the product baseline simulator to experiment with different component combinations.</p>
         </div>
         <div className="hero-cta">
-          <Link to="/quotes" className="btn btn--primary">Open quote flow</Link>
+          <Link to="/baseline" className="btn btn--primary">Try baseline simulator</Link>
           <Link to="/compare" className="btn btn--ghost btn--on-dark">View compare (beta)</Link>
         </div>
       </section>

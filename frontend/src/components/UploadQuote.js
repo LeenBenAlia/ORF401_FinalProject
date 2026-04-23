@@ -68,7 +68,7 @@ function UploadQuote() {
 
   const fetchLizSuggestions = async () => {
     try {
-      const response = await api.post('/liz/recommend-fields', {
+      const response = await api.post('liz/recommend-fields', {
         product_name: productName,
         product_description: productDescription,
         existing_fields: parseManualFields(),
@@ -97,11 +97,7 @@ function UploadQuote() {
 
     try {
       setUploading(true);
-      const response = await api.post('/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('upload', formData);
       setMessage(response.data.message || 'Upload successful');
       setData(response.data.data || []);
     } catch (error) {
@@ -114,7 +110,7 @@ function UploadQuote() {
 
   const handleExportExcel = async () => {
     try {
-      const response = await api.post('/export/excel', {
+      const response = await api.post('export/excel', {
         quote_ids: data.map((item) => item.id),
         export_layout: exportLayout,
         group_by: groupBy,

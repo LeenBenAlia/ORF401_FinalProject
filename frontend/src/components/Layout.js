@@ -1,7 +1,10 @@
 import React from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../auth';
 
 function Layout() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -11,44 +14,44 @@ function Layout() {
             BlaiseAI
           </Link>
           <nav className="main-nav" aria-label="Main">
-            <NavLink
-              to="/"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-              end
-            >
+            <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>
               Home
             </NavLink>
-            <NavLink
-              to="/quotes"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
+            <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/quotes" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Quote digitize
             </NavLink>
-            <NavLink
-              to="/risk"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
-              Risk &amp; hedging
+            <NavLink to="/baseline" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Product baseline
             </NavLink>
-            <NavLink
-              to="/compare"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
+            <NavLink to="/tariff" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              Tariff risk
+            </NavLink>
+            <NavLink to="/fx" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              FX risk
+            </NavLink>
+            <NavLink to="/compare" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Compare
             </NavLink>
           </nav>
           <div className="header-actions">
-            <a
-              className="btn btn--ghost"
-              href="https://github.com/LeenBenAlia/ORF401_FinalProject"
-              rel="noreferrer"
-              target="_blank"
-            >
+            <a className="btn btn--ghost" href="https://github.com/LeenBenAlia/ORF401_FinalProject" rel="noreferrer" target="_blank">
               GitHub
             </a>
-            <Link className="btn btn--primary" to="/quotes">
-              Launch app
-            </Link>
+            {user ? (
+              <>
+                <span className="header-user">{user.company}</span>
+                <button type="button" className="btn btn--ghost" onClick={logout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link className="btn btn--primary" to="/login">
+                Log in
+              </Link>
+            )}
           </div>
         </div>
       </header>
