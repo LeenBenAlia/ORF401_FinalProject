@@ -537,8 +537,26 @@ main .upload-card,
 main .results-card {
   background: #ffffff;
   border: 1px solid #dde5f2;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 1rem;
+}
+
+.upload-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.upload-head h2 {
+  margin: 0;
+}
+
+.file-type-chips {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .upload-row {
@@ -583,6 +601,13 @@ main .results-card {
   gap: 0.5rem 1rem;
 }
 
+.upload-dropzone__footer {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .btn-upload-pick,
 .btn-upload-go {
   font: inherit;
@@ -603,10 +628,8 @@ main .results-card {
 }
 
 .btn-upload-go {
-  display: block;
-  margin-top: 0.75rem;
-  width: 100%;
-  max-width: 280px;
+  display: inline-block;
+  min-width: 150px;
   background: #0b7c73;
   color: #fff;
 }
@@ -620,6 +643,21 @@ main .results-card {
   cursor: not-allowed;
 }
 
+.btn-upload-clear {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.btn-upload-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .upload-dropzone__or {
   font-size: 0.9rem;
   color: #64748b;
@@ -628,6 +666,12 @@ main .results-card {
 .upload-hint {
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
+}
+
+.btn-minimal {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
 }
 
 .upload-file-list {
@@ -1500,6 +1544,18 @@ pre {
   padding-left: 1rem;
   font-size: 0.88rem;
   color: #475569;
+}
+
+.group-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.chip--active {
+  border-color: #0d9488;
+  background: #f0fdfa;
 }
 
 .risk-globe-wrap {
