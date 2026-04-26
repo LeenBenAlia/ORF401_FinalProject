@@ -8,6 +8,8 @@ function QuoteLibrary() {
   const [selectedQuoteIds, setSelectedQuoteIds] = useState([]);
   const [targetGroup, setTargetGroup] = useState("default");
   const [error, setError] = useState("");
+  const [activeGroup, setActiveGroup] = useState("all");
+  const [query, setQuery] = useState("");
 
   const load = async () => {
     try {
@@ -57,6 +59,17 @@ function QuoteLibrary() {
     return acc;
   }, {});
 
+  const filteredGrouped = Object.entries(grouped).reduce((acc, [groupName, items]) => {
+    if (activeGroup !== "all" && groupName !== activeGroup) {
+      return acc;
+    }
+    const filtered = items.filter((q) => q.filename.toLowerCase().includes(query.toLowerCase()));
+    if (filtered.length) {
+      acc[groupName] = filtered;
+    }
+    return acc;
+  }, {});
+
   return (
     <section className="panel quote-library">
       <h2>Past uploads and quote folders</h2>
@@ -73,6 +86,11 @@ function QuoteLibrary() {
       </div>
 
       <div className="upload-row">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search filename"
+        />
         <select value={targetGroup} onChange={(e) => setTargetGroup(e.target.value)}>
           {groups.map((g) => (
             <option key={g} value={g}>{g}</option>
@@ -83,9 +101,29 @@ function QuoteLibrary() {
         </button>
       </div>
 
+      <div className="group-filter-row">
+        <button
+          type="button"
+          className={activeGroup === "all" ? "chip chip--active" : "chip"}
+          onClick={() => setActiveGroup("all")}
+        >
+          All ({quotes.length})
+        </button>
+        {groups.map((g) => (
+          <button
+            key={g}
+            type="button"
+            className={activeGroup === g ? "chip chip--active" : "chip"}
+            onClick={() => setActiveGroup(g)}
+          >
+            {g} ({grouped[g]?.length || 0})
+          </button>
+        ))}
+      </div>
+
       <div className="library-groups">
-        {Object.keys(grouped).length === 0 && <p className="muted">No uploaded quotes yet.</p>}
-        {Object.entries(grouped).map(([group, items]) => (
+        {Object.keys(filteredGrouped).length === 0 && <p className="muted">No matching uploaded quotes.</p>}
+        {Object.entries(filteredGrouped).map(([group, items]) => (
           <article key={group} className="group-folder">
             <h3>{group}</h3>
             <ul>

@@ -29,6 +29,7 @@ function UploadQuote() {
   const [exportLayout, setExportLayout] = useState('same_sheet');
   const [groupBy, setGroupBy] = useState('supplier');
   const [outputMode, setOutputMode] = useState('excel');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const addFilesFromList = useCallback((fileList) => {
     const next = Array.from(fileList || []).filter(
@@ -130,7 +131,14 @@ function UploadQuote() {
 
   return (
     <section className="upload-card">
-      <h2>Upload Supplier Quote PDFs</h2>
+      <div className="upload-head">
+        <h2>Digitize supplier quote files</h2>
+        <div className="file-type-chips">
+          <span className="chip">PDF</span>
+          <span className="chip">Excel / CSV</span>
+          <span className="chip">Email export</span>
+        </div>
+      </div>
       <p className="muted">
         Add one or many files in a single action: PDF, Excel, CSV, or email-export files (EML/TXT).
         Multi-select in the file dialog (Shift- or Cmd/Ctrl-click), drop files
@@ -161,9 +169,19 @@ function UploadQuote() {
           <span className="upload-dropzone__or">or drag and drop</span>
         </div>
         <p className="upload-hint muted">Multiple files supported — all selected quote files upload together.</p>
-        <button className="btn-upload-go" onClick={handleUpload} disabled={uploading} type="button">
-          {uploading ? 'Uploading…' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
-        </button>
+        <div className="upload-dropzone__footer">
+          <button className="btn-upload-go" onClick={handleUpload} disabled={uploading} type="button">
+            {uploading ? 'Uploading…' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
+          </button>
+          <button
+            type="button"
+            className="btn-upload-clear"
+            onClick={() => setFiles([])}
+            disabled={!files.length || uploading}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {files.length > 0 && (
@@ -174,51 +192,65 @@ function UploadQuote() {
         </ul>
       )}
 
-      <div className="form-grid">
-        <label>
-          Product name
-          <input value={productName} onChange={(e) => setProductName(e.target.value)} />
-        </label>
-        <label>
-          Group key
-          <input value={groupKey} onChange={(e) => setGroupKey(e.target.value)} />
-        </label>
-        <label>
-          Liz output mode
-          <select value={outputMode} onChange={(e) => setOutputMode(e.target.value)}>
-            <option value="excel">Excel-ready output</option>
-            <option value="code">Code/JSON output</option>
-          </select>
-        </label>
-      </div>
-      <label>
-        Product description (Liz uses this to recommend fields)
-        <textarea
-          value={productDescription}
-          onChange={(e) => setProductDescription(e.target.value)}
-          rows={3}
-        />
-      </label>
-      <label>
-        Manual fields (comma separated)
-        <input
-          value={manualFieldsInput}
-          onChange={(e) => setManualFieldsInput(e.target.value)}
-          placeholder="weight, dimensions, country_of_origin, chemical_composition"
-        />
-      </label>
-
       <div className="upload-row">
-        <label className="checkbox-row">
-          <input type="checkbox" checked={useLiz} onChange={(e) => setUseLiz(e.target.checked)} />
-          Enable Liz AI field suggestions
-        </label>
-        <button type="button" onClick={fetchLizSuggestions}>Ask Liz for recommended fields</button>
+        <button
+          type="button"
+          className="btn-minimal"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+        >
+          {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+        </button>
       </div>
+
+      {showAdvanced && (
+        <>
+          <div className="form-grid">
+            <label>
+              Product name
+              <input value={productName} onChange={(e) => setProductName(e.target.value)} />
+            </label>
+            <label>
+              Folder/group
+              <input value={groupKey} onChange={(e) => setGroupKey(e.target.value)} />
+            </label>
+            <label>
+              Output mode
+              <select value={outputMode} onChange={(e) => setOutputMode(e.target.value)}>
+                <option value="excel">Excel-ready output</option>
+                <option value="code">Code/JSON output</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Product description (Liz uses this to recommend fields)
+            <textarea
+              value={productDescription}
+              onChange={(e) => setProductDescription(e.target.value)}
+              rows={3}
+            />
+          </label>
+          <label>
+            Manual fields (comma separated)
+            <input
+              value={manualFieldsInput}
+              onChange={(e) => setManualFieldsInput(e.target.value)}
+              placeholder="weight, dimensions, country_of_origin, chemical_composition"
+            />
+          </label>
+
+          <div className="upload-row">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={useLiz} onChange={(e) => setUseLiz(e.target.checked)} />
+              Enable Liz AI field suggestions
+            </label>
+            <button type="button" onClick={fetchLizSuggestions}>Ask Liz for recommended fields</button>
+          </div>
+        </>
+      )}
 
       {lizSuggestions.length > 0 && (
         <div className="results-card">
-          <h3>Liz Recommendations</h3>
+          <h3>Liz recommendations</h3>
           <p><strong>Suggested fields:</strong> {lizSuggestions.join(', ')}</p>
           <p><strong>Missing from your manual fields:</strong> {missingFields.join(', ') || 'None'}</p>
         </div>
