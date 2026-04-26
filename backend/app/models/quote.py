@@ -37,3 +37,12 @@ class ExportOptions(BaseModel):
     quote_ids: List[int] = Field(default_factory=list)
     export_layout: str = "same_sheet"
     group_by: str = "supplier"
+
+
+class GroupCreateRequest(BaseModel):
+    name: str
+
+
+class AssignGroupRequest(BaseModel):
+    quote_ids: List[int] = Field(default_factory=list)
+    group_name: str

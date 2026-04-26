@@ -1423,6 +1423,94 @@ pre {
   font: inherit;
 }
 
+.user-chip {
+  background: #ecfeff;
+  border: 1px solid #99f6e4;
+  color: #115e59;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.auth-panel h1 {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.auth-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 3px;
+  margin: 0.5rem 0 1rem;
+  background: #f8fafc;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 520px;
+}
+
+.error-text {
+  color: #b91c1c;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.preset-box {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.preset-box h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.preset-box ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.quote-library .library-groups {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.group-folder {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #fff;
+}
+
+.group-folder h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.group-folder ul {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.risk-globe-wrap {
+  min-height: 420px;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(circle at 10% 15%, #1e293b 0%, #020617 62%);
+  border: 1px solid #1e293b;
+}
+
 @media (max-width: 600px) {
   .header-actions {
     display: none;

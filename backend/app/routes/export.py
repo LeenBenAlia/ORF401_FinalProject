@@ -4,14 +4,17 @@ import pandas as pd
 import os
 from ..models.quote import ExportOptions
 from .quotes import QUOTE_STORE
+from .auth import get_company_from_auth_header
+from fastapi import Header
 
 router = APIRouter()
 
 @router.post("/export/excel")
-async def export_to_excel(options: ExportOptions):
-    selected_quotes = QUOTE_STORE
+async def export_to_excel(options: ExportOptions, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    selected_quotes = [q for q in QUOTE_STORE if q.get("company_id") == company["id"]]
     if options.quote_ids:
-        selected_quotes = [quote for quote in QUOTE_STORE if quote["id"] in options.quote_ids]
+        selected_quotes = [quote for quote in selected_quotes if quote["id"] in options.quote_ids]
 
     if not selected_quotes:
         raise HTTPException(status_code=400, detail="No quote data available to export")

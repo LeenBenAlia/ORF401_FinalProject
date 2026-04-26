@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import quotes, export
+from .routes import quotes, export, auth
 
 app = FastAPI(title="BlaiseAI", description="Supplier Quote Processing API")
 
@@ -22,6 +22,7 @@ app.add_middleware(
 
 app.include_router(quotes.router, prefix="/api/v1")
 app.include_router(export.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():

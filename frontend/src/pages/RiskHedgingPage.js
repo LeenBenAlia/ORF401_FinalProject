@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import WorldMapMonitor from '../components/WorldMapMonitor';
+import React, { useEffect, useMemo, useState } from 'react';
+import RiskGlobe from '../components/RiskGlobe';
 import LizPanel from '../components/LizPanel';
+import api from '../api';
 
 /* Mock “quote line” inventory — in production, hydrate from /api/v1/quotes */
 const MOCK_LINES = [
@@ -18,9 +19,33 @@ const TRANSPORT = {
 const TARIFF_LINK = 'https://hts.usitc.gov/';
 
 function RiskHedgingPage() {
+  const [lines, setLines] = useState(MOCK_LINES);
   const [lineId, setLineId] = useState(MOCK_LINES[0].id);
   const [activeRoute, setActiveRoute] = useState('sea');
-  const line = useMemo(() => MOCK_LINES.find((l) => l.id === lineId) || MOCK_LINES[0], [lineId]);
+  const line = useMemo(() => lines.find((l) => l.id === lineId) || lines[0], [lineId, lines]);
+
+  useEffect(() => {
+    const loadFromQuotes = async () => {
+      try {
+        const response = await api.get('/quotes');
+        const quoteLines = (response.data?.quotes || []).map((q) => ({
+          id: `q-${q.id}`,
+          product: q.extracted?.product || q.selected_fields?.product_name || "Unknown product",
+          material: q.extracted?.material || q.selected_fields?.raw_materials || "Unknown material",
+          country: q.extracted?.country || q.selected_fields?.country_of_origin || "Germany",
+          currency: q.extracted?.currency || "USD",
+          originPort: q.selected_fields?.geography || q.extracted?.country || "Origin",
+        }));
+        if (quoteLines.length > 0) {
+          setLines(quoteLines);
+          setLineId(quoteLines[0].id);
+        }
+      } catch (error) {
+        // Keep mock data as fallback when quotes are unavailable.
+      }
+    };
+    loadFromQuotes();
+  }, []);
 
   const showFx = line.currency && line.currency !== 'USD';
   const fxMock = { pair: `${line.currency}/USD`, rate: '— live feed TBD', hedge: 'Forward & spot benchmark' };
@@ -49,7 +74,7 @@ function RiskHedgingPage() {
             <label className="field-inline">
               <span>Product / material</span>
               <select value={lineId} onChange={(e) => setLineId(e.target.value)}>
-                {MOCK_LINES.map((l) => (
+                {lines.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.product} — {l.material} ({l.country})
                   </option>
@@ -78,10 +103,10 @@ function RiskHedgingPage() {
                 ))}
               </div>
             </div>
-            <WorldMapMonitor
-              activeRoute={activeRoute}
-              originLabel={line.originPort}
-              destLabel="US hub"
+            <RiskGlobe
+              routeType={activeRoute}
+              originCountry={line.country}
+              destinationCountry="USA"
             />
             <div className="transport-cards">
               {Object.entries(TRANSPORT).map(([key, t]) => (

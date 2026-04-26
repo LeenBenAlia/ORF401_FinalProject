@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth';
 
 function Layout() {
-  const { user, logout } = useAuth();
+  const { isAuthenticated, company, logout } = useAuth();
 
   return (
     <div className="app-shell">
@@ -40,16 +40,16 @@ function Layout() {
             <a className="btn btn--ghost" href="https://github.com/LeenBenAlia/ORF401_FinalProject" rel="noreferrer" target="_blank">
               GitHub
             </a>
-            {user ? (
+            {isAuthenticated ? (
               <>
-                <span className="header-user">{user.company}</span>
-                <button type="button" className="btn btn--ghost" onClick={logout}>
-                  Logout
+                <span className="user-chip">{company?.company_name || company?.email}</span>
+                <button type="button" className="btn btn--primary" onClick={logout}>
+                  Log out
                 </button>
               </>
             ) : (
-              <Link className="btn btn--primary" to="/login">
-                Log in
+              <Link className="btn btn--primary" to="/auth">
+                Login / Sign up
               </Link>
             )}
           </div>

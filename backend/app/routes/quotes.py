@@ -1,10 +1,20 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Header
 from typing import List, Dict, Any
 import os
 import uuid
 import json
+import re
+from email import policy
+from email.parser import BytesParser
+import pandas as pd
 from ..utils.pdf_processor import extract_quote_data
-from ..models.quote import Quote, LizFieldRecommendationRequest
+from ..models.quote import (
+    Quote,
+    LizFieldRecommendationRequest,
+    GroupCreateRequest,
+    AssignGroupRequest,
+)
+from .auth import get_company_from_auth_header
 
 router = APIRouter()
 
@@ -12,6 +22,7 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 QUOTE_STORE: List[Dict[str, Any]] = []
 NEXT_ID = 1
+GROUP_STORE: Dict[str, List[str]] = {}
 
 BASELINE_FIELDS = [
     "product_name",
@@ -93,6 +104,90 @@ def build_selected_fields(
     return selected_fields
 
 
+def _extract_from_text(text: str) -> Dict[str, Any]:
+    def _get(pattern: str, default: str = "Unknown") -> str:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        return match.group(1).strip() if match else default
+
+    raw_price = _get(r"Price:\s*[$]?([0-9]+(?:\.[0-9]+)?)", "0")
+    try:
+        price = float(raw_price)
+    except ValueError:
+        price = 0.0
+
+    return {
+        "supplier": _get(r"Supplier:\s*([^\n]+)"),
+        "product": _get(r"Product:\s*([^\n]+)"),
+        "price": price,
+        "currency": _get(r"Currency:\s*([A-Z]{3})", "USD"),
+        "country": _get(r"Country:\s*([^\n]+)"),
+        "material": _get(r"Material:\s*([^\n]+)"),
+        "tariff_rate": None,
+        "exchange_rate": None,
+    }
+
+
+def _extract_from_spreadsheet(file_path: str) -> Dict[str, Any]:
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".csv":
+        df = pd.read_csv(file_path)
+    else:
+        df = pd.read_excel(file_path)
+    if df.empty:
+        raise ValueError("Spreadsheet is empty")
+    row = df.iloc[0].to_dict()
+    lowered = {str(k).lower().strip(): v for k, v in row.items()}
+
+    def _lookup(*keys, default="Unknown"):
+        for key in keys:
+            if key in lowered and str(lowered[key]).strip():
+                return lowered[key]
+        return default
+
+    price_value = _lookup("price", "cost", "cost_per_unit", default=0.0)
+    try:
+        price = float(price_value)
+    except Exception:
+        price = 0.0
+
+    return {
+        "supplier": str(_lookup("supplier", "supplier_company")),
+        "product": str(_lookup("product", "product_name", "part", default="Unknown")),
+        "price": price,
+        "currency": str(_lookup("currency", default="USD")),
+        "country": str(_lookup("country", "country_of_origin")),
+        "material": str(_lookup("material", "raw_materials")),
+        "tariff_rate": None,
+        "exchange_rate": None,
+    }
+
+
+def _extract_from_email(file_path: str) -> Dict[str, Any]:
+    with open(file_path, "rb") as f:
+        msg = BytesParser(policy=policy.default).parse(f)
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                body += part.get_content()
+    else:
+        body = msg.get_content()
+    if not body:
+        body = msg.get("subject", "")
+    return _extract_from_text(body)
+
+
+def _extract_quote_data_by_type(file_path: str, original_filename: str) -> Dict[str, Any]:
+    ext = os.path.splitext(original_filename)[1].lower()
+    if ext == ".pdf":
+        return extract_quote_data(file_path)
+    if ext in {".xlsx", ".xls", ".csv"}:
+        return _extract_from_spreadsheet(file_path)
+    if ext in {".eml", ".txt"}:
+        return _extract_from_email(file_path) if ext == ".eml" else _extract_from_text(open(file_path, "r", encoding="utf-8", errors="ignore").read())
+    raise ValueError("Unsupported file type. Upload PDF, Excel (xlsx/xls/csv), or email export (eml/txt).")
+
+
 @router.post("/liz/recommend-fields")
 async def recommend_fields(payload: LizFieldRecommendationRequest):
     recommended_fields = generate_liz_recommendations(payload.product_name, payload.product_description)
@@ -113,17 +208,23 @@ async def upload_quote(
     product_description: str = Form(""),
     group_key: str = Form("default"),
     output_mode: str = Form("excel"),
+    authorization: str = Header(None),
 ):
     global NEXT_ID
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
     parsed_manual_fields = parse_manual_fields(manual_fields)
     results = []
 
     if not files:
-        raise HTTPException(status_code=400, detail="At least one PDF file is required")
+        raise HTTPException(
+            status_code=400,
+            detail="At least one quote file is required (PDF, Excel, CSV, EML, or TXT).",
+        )
 
     for file in files:
-        if not file.filename or not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="File name is required")
 
         content = await file.read()
         max_upload_size = 25 * 1024 * 1024  # 25 MB
@@ -136,7 +237,7 @@ async def upload_quote(
             f.write(content)
 
         try:
-            extracted = extract_quote_data(file_path)
+            extracted = _extract_quote_data_by_type(file_path, file.filename)
             quote = Quote(**extracted)
             _ = quote
             selected_fields = build_selected_fields(
@@ -148,18 +249,24 @@ async def upload_quote(
             )
             record = {
                 "id": NEXT_ID,
+                "company_id": company_id,
                 "filename": file.filename,
                 "group_key": group_key,
+                "source_type": os.path.splitext(file.filename)[1].lower(),
                 "extracted": extracted,
                 "selected_fields": selected_fields,
             }
+            if company_id not in GROUP_STORE:
+                GROUP_STORE[company_id] = ["default"]
+            if group_key and group_key not in GROUP_STORE[company_id]:
+                GROUP_STORE[company_id].append(group_key)
             QUOTE_STORE.append(record)
             results.append(record)
             NEXT_ID += 1
         except Exception as exc:
             raise HTTPException(
                 status_code=422,
-                detail=f"Unable to process PDF '{file.filename}'. Please confirm it is valid. {exc}",
+                detail=f"Unable to process '{file.filename}'. Please confirm it is a valid quote file. {exc}",
             ) from exc
 
     return {
@@ -171,8 +278,10 @@ async def upload_quote(
     }
 
 @router.get("/quotes")
-async def get_quotes():
-    return {"quotes": QUOTE_STORE}
+async def get_quotes(authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    quotes = [q for q in QUOTE_STORE if q.get("company_id") == company["id"]]
+    return {"quotes": quotes}
 
 @router.get("/quotes/{quote_id}")
 async def get_quote(quote_id: int):
@@ -180,6 +289,51 @@ async def get_quote(quote_id: int):
     return {"quote": {}}
 
 @router.post("/compare")
-async def compare_quotes(quote_ids: List[int]):
-    selected = [quote for quote in QUOTE_STORE if quote["id"] in quote_ids]
+async def compare_quotes(quote_ids: List[int], authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    selected = [
+        quote for quote in QUOTE_STORE
+        if quote["id"] in quote_ids and quote.get("company_id") == company["id"]
+    ]
     return {"comparison": selected}
+
+
+@router.get("/groups")
+async def get_groups(authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    groups = GROUP_STORE.get(company["id"], ["default"])
+    return {"groups": groups}
+
+
+@router.post("/groups")
+async def create_group(payload: GroupCreateRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    if company_id not in GROUP_STORE:
+        GROUP_STORE[company_id] = ["default"]
+    group_name = payload.name.strip()
+    if not group_name:
+        raise HTTPException(status_code=400, detail="Group name is required")
+    if group_name not in GROUP_STORE[company_id]:
+        GROUP_STORE[company_id].append(group_name)
+    return {"groups": GROUP_STORE[company_id]}
+
+
+@router.post("/quotes/assign-group")
+async def assign_quotes_to_group(payload: AssignGroupRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    group_name = payload.group_name.strip()
+    if not group_name:
+        raise HTTPException(status_code=400, detail="Group name is required")
+    if company_id not in GROUP_STORE:
+        GROUP_STORE[company_id] = ["default"]
+    if group_name not in GROUP_STORE[company_id]:
+        GROUP_STORE[company_id].append(group_name)
+
+    updated = 0
+    for quote in QUOTE_STORE:
+        if quote["id"] in payload.quote_ids and quote.get("company_id") == company_id:
+            quote["group_key"] = group_name
+            updated += 1
+    return {"updated_count": updated, "group": group_name}

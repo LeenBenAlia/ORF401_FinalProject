@@ -1,10 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react';
 import api from '../api';
 
-function mergePdfFiles(prev, added) {
+function mergeQuoteFiles(prev, added) {
   const map = new Map();
   for (const f of [...prev, ...added]) {
-    if (f && f.name && f.name.toLowerCase().endsWith('.pdf')) {
+    if (f && f.name && /\.(pdf|xlsx|xls|csv|eml|txt)$/i.test(f.name)) {
       const key = `${f.name}-${f.size}-${f.lastModified}`;
       map.set(key, f);
     }
@@ -32,13 +32,13 @@ function UploadQuote() {
 
   const addFilesFromList = useCallback((fileList) => {
     const next = Array.from(fileList || []).filter(
-      (f) => f.name && f.name.toLowerCase().endsWith('.pdf')
+      (f) => f.name && /\.(pdf|xlsx|xls|csv|eml|txt)$/i.test(f.name)
     );
     if (!next.length) {
-      setMessage('Please add PDF files only.');
+      setMessage('Please add PDF, Excel, CSV, EML, or TXT quote files.');
       return;
     }
-    setFiles((prev) => mergePdfFiles(prev, next));
+    setFiles((prev) => mergeQuoteFiles(prev, next));
     setMessage('');
   }, []);
 
@@ -82,7 +82,7 @@ function UploadQuote() {
 
   const handleUpload = async () => {
     if (!files.length) {
-      setMessage('Please choose at least one PDF quote first.');
+      setMessage('Please choose at least one quote file first.');
       return;
     }
 
@@ -132,8 +132,9 @@ function UploadQuote() {
     <section className="upload-card">
       <h2>Upload Supplier Quote PDFs</h2>
       <p className="muted">
-        Add one or many PDFs in a single action: multi-select in the file dialog (Shift- or Cmd/Ctrl-click), drop files
-        here, or use <strong>Choose PDFs</strong> again to append more.
+        Add one or many files in a single action: PDF, Excel, CSV, or email-export files (EML/TXT).
+        Multi-select in the file dialog (Shift- or Cmd/Ctrl-click), drop files
+        here, or use <strong>Choose quote files</strong> again to append more.
       </p>
 
       <div
@@ -147,7 +148,7 @@ function UploadQuote() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,.xlsx,.xls,.csv,.eml,.txt,message/rfc822,text/plain"
           multiple
           onChange={handleFileChange}
           className="upload-file-input"
@@ -155,18 +156,18 @@ function UploadQuote() {
         />
         <div className="upload-dropzone__actions">
           <button type="button" className="btn-upload-pick" onClick={() => fileInputRef.current?.click()}>
-            Choose PDFs
+            Choose quote files
           </button>
           <span className="upload-dropzone__or">or drag and drop</span>
         </div>
-        <p className="upload-hint muted">Multiple files supported — all selected PDFs upload together.</p>
+        <p className="upload-hint muted">Multiple files supported — all selected quote files upload together.</p>
         <button className="btn-upload-go" onClick={handleUpload} disabled={uploading} type="button">
           {uploading ? 'Uploading…' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
         </button>
       </div>
 
       {files.length > 0 && (
-        <ul className="upload-file-list" aria-label="Selected PDFs">
+        <ul className="upload-file-list" aria-label="Selected quote files">
           {files.map((f) => (
             <li key={`${f.name}-${f.size}-${f.lastModified}`}>{f.name}</li>
           ))}
