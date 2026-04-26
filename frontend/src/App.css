@@ -1509,6 +1509,37 @@ pre {
   overflow: hidden;
   background: radial-gradient(circle at 10% 15%, #1e293b 0%, #020617 62%);
   border: 1px solid #1e293b;
+  position: relative;
+}
+
+.risk-globe-hud {
+  position: absolute;
+  z-index: 2;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.risk-globe-hud__badge,
+.risk-globe-hud__route {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.risk-globe-hud__badge {
+  color: #67e8f9;
+  background: rgba(8, 47, 73, 0.55);
+}
+
+.risk-globe-hud__route {
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.62);
 }
 
 @media (max-width: 600px) {
