@@ -1281,6 +1281,7 @@ pre {
   color: #b91c1c;
   margin: 0.5rem 0 0;
   font-size: 0.95rem;
+  white-space: pre-line;
 }
 
 .company-quote-table-wrap {
@@ -1615,6 +1616,7 @@ pre {
   color: #b91c1c;
   margin: 0;
   font-size: 0.9rem;
+  white-space: pre-line;
 }
 
 .preset-box {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
+import { formatApiError } from "../api";
 
 const presets = [
   { company: "Tesla", email: "tesla@blaise.ai", password: "Model3Ride!" },
@@ -30,7 +31,7 @@ function AuthPage() {
       }
       navigate("/quotes");
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message);
+      setError(formatApiError(err));
     } finally {
       setLoading(false);
     }

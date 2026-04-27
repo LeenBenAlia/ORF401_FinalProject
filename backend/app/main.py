@@ -24,6 +24,13 @@ app.include_router(quotes.router, prefix="/api/v1")
 app.include_router(export.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 
+
+@app.get("/api/v1/health")
+async def health():
+    """Lightweight check so you can verify the API is running before signing in."""
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to BlaiseAI API"}

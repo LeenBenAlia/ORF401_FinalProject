@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { formatApiError } from '../api';
 
 function SignUpPage() {
   const { signup } = useAuth();
@@ -16,7 +17,7 @@ function SignUpPage() {
       await signup(company, email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message);
+      setError(formatApiError(err));
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { formatApiError } from '../api';
 
 function LoginPage() {
   const { login } = useAuth();
@@ -15,7 +16,7 @@ function LoginPage() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message);
+      setError(formatApiError(err));
     }
   };
 
