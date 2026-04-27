@@ -1,24 +1,61 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useId, useMemo, useState } from 'react';
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Graticule,
+  Line,
+  Marker,
+  Sphere,
+  ZoomableGroup,
+} from 'react-simple-maps';
+import { geoInterpolate } from 'd3-geo';
 
-/* Stylized "world monitor" view: abstract map + route arcs. No third-party map deps. */
+/* Natural Earth 110m countries — real geography outlines (similar spirit to World Monitor flat map). */
+
+const GEOGRAPHY_URL =
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson';
 
 const DEFAULT_ROUTES = [
-  { id: 'sea', label: 'Ocean freight', from: { x: 22, y: 42 }, to: { x: 78, y: 38 }, color: 'var(--route-sea)' },
-  { id: 'air', label: 'Air cargo', from: { x: 30, y: 35 }, to: { x: 75, y: 32 }, color: 'var(--route-air)' },
-  { id: 'land', label: 'Rail / truck', from: { x: 48, y: 30 }, to: { x: 55, y: 48 }, color: 'var(--route-land)' },
+  {
+    id: 'sea',
+    label: 'Ocean freight',
+    from: { lng: 9.9937, lat: 53.5511 },
+    to: { lng: -81.09, lat: 32.0809 },
+    color: 'var(--route-sea)',
+  },
+  {
+    id: 'air',
+    label: 'Air cargo',
+    from: { lng: 2.3522, lat: 48.8566 },
+    to: { lng: -73.7781, lat: 40.6413 },
+    color: 'var(--route-air)',
+  },
+  {
+    id: 'land',
+    label: 'Rail / truck',
+    from: { lng: 21.0122, lat: 52.2297 },
+    to: { lng: 4.4777, lat: 51.9244 },
+    color: 'var(--route-land)',
+  },
 ];
 
 const DEFAULT_PORTS = [
-  { x: 22, y: 42, label: 'Hamburg', type: 'port' },
-  { x: 78, y: 38, label: 'Savannah', type: 'port' },
-  { x: 30, y: 35, label: 'Paris', type: 'port' },
-  { x: 55, y: 48, label: 'Rotterdam', type: 'port' },
+  { lng: 9.9937, lat: 53.5511, label: 'Hamburg', type: 'port' },
+  { lng: -81.09, lat: 32.0809, label: 'Savannah', type: 'port' },
+  { lng: 2.3522, lat: 48.8566, label: 'Paris', type: 'port' },
+  { lng: 126.978, lat: 37.5665, label: 'Seoul', type: 'port' },
 ];
 
-function buildPath(from, to) {
-  const midX = (from.x + to.x) / 2;
-  const midY = Math.min(from.y, to.y) - 12;
-  return `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`;
+const PROJECTIONS = [
+  { id: 'geoEqualEarth', label: 'Equal Earth' },
+  { id: 'geoNaturalEarth1', label: 'Natural Earth' },
+  { id: 'geoMercator', label: 'Mercator' },
+];
+
+function greatCircleLineString(from, to, segments = 56) {
+  const interpolate = geoInterpolate([from.lng, from.lat], [to.lng, to.lat]);
+  return Array.from({ length: segments }, (_, i) => interpolate(i / (segments - 1)));
 }
 
 function WorldMapMonitor({
@@ -29,64 +66,195 @@ function WorldMapMonitor({
   ports = DEFAULT_PORTS,
   conflictZones = [],
 }) {
-  const visible = useMemo(
+  const clipId = useId().replace(/:/g, '');
+  const [layers, setLayers] = useState({
+    countries: true,
+    graticule: true,
+    lanes: true,
+    alerts: true,
+    ports: true,
+    labels: true,
+  });
+  const [projection, setProjection] = useState('geoEqualEarth');
+  const [viewKey, setViewKey] = useState(0);
+
+  const visibleRouteIds = useMemo(
     () => new Set(routes.filter((r) => r.id === activeRoute).map((r) => r.id)),
     [activeRoute, routes]
   );
 
+  const routeArcs = useMemo(() => {
+    return routes
+      .filter((r) => visibleRouteIds.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        color: r.color,
+        coordinates: greatCircleLineString(r.from, r.to),
+      }));
+  }, [routes, visibleRouteIds]);
+
+  const toggleLayer = useCallback((key) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const projectionConfig = useMemo(() => {
+    const base = { center: [0, 12] };
+    if (projection === 'geoMercator') {
+      return { ...base, scale: 140 };
+    }
+    if (projection === 'geoNaturalEarth1') {
+      return { ...base, scale: 200 };
+    }
+    return { ...base, scale: 200 };
+  }, [projection]);
+
   return (
-    <div className="world-monitor" role="img" aria-label="Supply route monitor">
+    <div className="world-monitor" role="region" aria-label="Supply route geographic map">
       <div className="world-monitor__hud">
         <span className="hud-pill">Live view</span>
-        <span className="hud-pill hud-pill--dim">{originLabel} → {destLabel}</span>
+        <span className="hud-pill hud-pill--dim">
+          {originLabel} → {destLabel}
+        </span>
+        <span className="hud-pill hud-pill--hint">Scroll to zoom · drag to pan</span>
       </div>
-      <svg className="world-monitor__svg" viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <radialGradient id="ocean" cx="50%" cy="40%" r="70%">
-            <stop offset="0%" stopColor="#0f172a" />
-            <stop offset="100%" stopColor="#020617" />
-          </radialGradient>
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="0.4" result="b" />
-            <feMerge>
-              <feMergeNode in="b" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <rect width="100" height="60" fill="url(#ocean)" rx="1" />
-        <ellipse cx="24" cy="38" rx="14" ry="9" fill="#1e3a4a" opacity="0.5" />
-        <ellipse cx="78" cy="36" rx="12" ry="8" fill="#1e3a4a" opacity="0.45" />
-        <ellipse cx="52" cy="28" rx="10" ry="6" fill="#1a3342" opacity="0.4" />
-        {conflictZones.map((zone, index) => (
-          <g key={`zone-${index}`}>
-            <circle cx={zone.x} cy={zone.y} r="3.5" fill="rgba(250, 101, 101, 0.8)" />
-            <circle cx={zone.x} cy={zone.y} r="1.2" fill="#fee2e2" />
-          </g>
+
+      <div className="world-monitor__toolbar" role="toolbar" aria-label="Map display options">
+        <span className="world-monitor__toolbar-label">Layers</span>
+        {[
+          { key: 'countries', label: 'Countries' },
+          { key: 'graticule', label: 'Grid' },
+          { key: 'lanes', label: 'Lanes' },
+          { key: 'alerts', label: 'Alerts' },
+          { key: 'ports', label: 'Ports' },
+          { key: 'labels', label: 'Labels' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            className={`world-monitor__toggle ${layers[key] ? 'is-on' : ''}`}
+            aria-pressed={layers[key]}
+            onClick={() => toggleLayer(key)}
+          >
+            {label}
+          </button>
         ))}
-        {routes.map((route) => {
-          if (!visible.has(route.id)) return null;
-          return (
-            <path
-              key={route.id}
-              d={buildPath(route.from, route.to)}
-              fill="none"
-              stroke={route.color}
-              strokeWidth="0.5"
-              strokeLinecap="round"
-              filter="url(#glow)"
-              className="world-monitor__arc"
-            />
-          );
-        })}
-        {ports.map((port) => (
-          <g key={`${port.label}-${port.x}-${port.y}`}>
-            <circle cx={port.x} cy={port.y} r="1.6" fill={port.type === 'port' ? '#34d399' : '#38bdf8'} />
-            <text x={port.x + 2.2} y={port.y + 0.8} fontSize="2.8" fill="#e2e8f0">{port.label}</text>
-          </g>
+        <span className="world-monitor__toolbar-divider" aria-hidden />
+        <span className="world-monitor__toolbar-label">Projection</span>
+        {PROJECTIONS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className={`world-monitor__toggle world-monitor__toggle--proj ${projection === p.id ? 'is-on' : ''}`}
+            aria-pressed={projection === p.id}
+            onClick={() => setProjection(p.id)}
+          >
+            {p.label}
+          </button>
         ))}
-        <line x1="0" y1="52" x2="100" y2="52" stroke="#334155" strokeWidth="0.08" opacity="0.5" />
-      </svg>
+        <button type="button" className="world-monitor__reset" onClick={() => setViewKey((k) => k + 1)}>
+          Reset view
+        </button>
+      </div>
+
+      <div className="world-monitor__map-frame">
+        <ComposableMap
+          key={`${projection}-${viewKey}`}
+          projection={projection}
+          projectionConfig={projectionConfig}
+          width={960}
+          height={500}
+          className="world-monitor__map-svg"
+        >
+          <ZoomableGroup center={[0, 12]} zoom={1} minZoom={0.65} maxZoom={10}>
+            <Sphere id={clipId} fill="#020617" stroke="#1e293b" strokeWidth={0.6} />
+            <g clipPath={`url(#${clipId})`}>
+              {layers.graticule && (
+                <Graticule
+                  stroke="rgba(148, 163, 184, 0.22)"
+                  strokeWidth={0.35}
+                  step={[20, 20]}
+                />
+              )}
+              <Geographies geography={GEOGRAPHY_URL}>
+                {({ geographies }) =>
+                  layers.countries
+                    ? geographies.map((geo) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          className="world-monitor__land"
+                          style={{
+                            default: {
+                              fill: 'rgba(15, 23, 42, 0.92)',
+                              stroke: 'rgba(71, 85, 105, 0.85)',
+                              strokeWidth: 0.35,
+                              outline: 'none',
+                            },
+                            hover: {
+                              fill: 'rgba(30, 58, 95, 0.95)',
+                              stroke: 'rgba(94, 234, 212, 0.45)',
+                              strokeWidth: 0.5,
+                              outline: 'none',
+                            },
+                            pressed: {
+                              fill: 'rgba(30, 41, 59, 0.95)',
+                              stroke: 'rgba(148, 163, 184, 0.9)',
+                              outline: 'none',
+                            },
+                          }}
+                        />
+                      ))
+                    : null
+                }
+              </Geographies>
+              {layers.lanes &&
+                routeArcs.map((arc) => (
+                  <Line
+                    key={arc.id}
+                    coordinates={arc.coordinates}
+                    stroke={arc.color}
+                    strokeWidth={1.35}
+                    strokeLinecap="round"
+                    fill="transparent"
+                    className="world-monitor__lane"
+                  />
+                ))}
+              {layers.alerts &&
+                conflictZones.map((zone, index) => (
+                  <Marker key={`zone-${zone.label}-${index}`} coordinates={[zone.lng, zone.lat]}>
+                    <g className="world-monitor__alert">
+                      <title>{zone.label}</title>
+                      <circle r={7} fill="rgba(251, 113, 133, 0.35)" className="world-monitor__alert-pulse" />
+                      <circle r={3.2} fill="rgba(251, 113, 133, 0.95)" />
+                      <circle r={1.1} fill="#fff7ed" />
+                    </g>
+                    {layers.labels && (
+                      <text
+                        textAnchor="middle"
+                        y={-11}
+                        className="world-monitor__marker-label world-monitor__marker-label--alert"
+                      >
+                        {zone.label}
+                      </text>
+                    )}
+                  </Marker>
+                ))}
+              {layers.ports &&
+                ports.map((port) => (
+                  <Marker key={`${port.label}-${port.lng}`} coordinates={[port.lng, port.lat]}>
+                    <circle r={3.2} fill={port.type === 'port' ? '#34d399' : '#38bdf8'} stroke="#0f172a" strokeWidth={0.6} />
+                    {layers.labels && (
+                      <text x={5} y={3} className="world-monitor__marker-label">
+                        {port.label}
+                      </text>
+                    )}
+                  </Marker>
+                ))}
+            </g>
+          </ZoomableGroup>
+        </ComposableMap>
+      </div>
+
       <ul className="world-monitor__legend" aria-label="Route types and hotspots">
         {routes.map((r) => (
           <li key={r.id} className={r.id === activeRoute ? 'is-active' : undefined}>

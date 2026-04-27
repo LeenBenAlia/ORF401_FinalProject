@@ -3,22 +3,40 @@ import WorldMapMonitor from '../components/WorldMapMonitor';
 import { useAuth } from '../auth';
 
 const ROUTES = [
-  { id: 'sea', label: 'ocean freight', from: { x: 14, y: 48 }, to: { x: 82, y: 34 }, color: 'var(--route-sea)' },
-  { id: 'air', label: 'air cargo', from: { x: 18, y: 22 }, to: { x: 78, y: 30 }, color: 'var(--route-air)' },
-  { id: 'land', label: 'rail / truck', from: { x: 42, y: 28 }, to: { x: 58, y: 42 }, color: 'var(--route-land)' },
+  {
+    id: 'sea',
+    label: 'ocean freight',
+    from: { lng: 9.9937, lat: 53.5511 },
+    to: { lng: -81.09, lat: 32.0809 },
+    color: 'var(--route-sea)',
+  },
+  {
+    id: 'air',
+    label: 'air cargo',
+    from: { lng: 2.3522, lat: 48.8566 },
+    to: { lng: -73.7781, lat: 40.6413 },
+    color: 'var(--route-air)',
+  },
+  {
+    id: 'land',
+    label: 'rail / truck',
+    from: { lng: 21.0122, lat: 52.2297 },
+    to: { lng: 4.4777, lat: 51.9244 },
+    color: 'var(--route-land)',
+  },
 ];
 
 const PORTS = [
-  { x: 14, y: 48, label: 'Hamburg', type: 'port' },
-  { x: 78, y: 34, label: 'Savannah', type: 'port' },
-  { x: 18, y: 22, label: 'Paris', type: 'port' },
-  { x: 54, y: 20, label: 'Seoul', type: 'port' },
+  { lng: 9.9937, lat: 53.5511, label: 'Hamburg', type: 'port' },
+  { lng: -81.09, lat: 32.0809, label: 'Savannah', type: 'port' },
+  { lng: 2.3522, lat: 48.8566, label: 'Paris', type: 'port' },
+  { lng: 126.978, lat: 37.5665, label: 'Seoul', type: 'port' },
 ];
 
 const CONFLICT_ZONES = [
-  { x: 40, y: 24, label: 'Red sea tension' },
-  { x: 68, y: 12, label: 'Taiwan Strait' },
-  { x: 32, y: 44, label: 'Eastern Europe alert' },
+  { lng: 40.0, lat: 18.5, label: 'Red Sea tension' },
+  { lng: 121.0, lat: 24.5, label: 'Taiwan Strait' },
+  { lng: 31.0, lat: 50.0, label: 'Eastern Europe alert' },
 ];
 
 function TariffPage() {
