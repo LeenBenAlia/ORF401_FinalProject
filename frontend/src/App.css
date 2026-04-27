@@ -627,6 +627,59 @@ main .results-card {
   background: #fff;
 }
 
+.upload-folder-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.upload-folder-tile {
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  border: 2px solid #b8c9e6;
+  background: #fff;
+  color: #0f172a;
+  min-width: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.upload-folder-tile:hover {
+  border-color: #0d9488;
+  background: #f8fffe;
+}
+
+.upload-folder-tile--active {
+  border-color: #0d9488;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.25);
+}
+
+.upload-folder-tile--dropping {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.upload-folder-tile__name {
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.upload-folder-tile__badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0f766e;
+  font-weight: 600;
+}
+
 .upload-dropzone {
   position: relative;
   border: 2px dashed #b8c9e6;
@@ -1728,6 +1781,169 @@ pre {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-bottom: 0.75rem;
+}
+
+.library-folder-board {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  align-items: stretch;
+}
+
+.library-folder-column {
+  flex: 0 0 min(240px, 88vw);
+  min-height: 10rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 0.6rem 0.65rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.library-folder-column--drop {
+  border-color: #0d9488;
+  background: #ecfdf5;
+  box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.2);
+}
+
+.library-folder-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.library-folder-column__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.library-folder-column__count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #e2e8f0;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+}
+
+.library-folder-column__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-height: 4rem;
+}
+
+.library-folder-column__empty {
+  font-size: 0.82rem;
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
+}
+
+.library-quote-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: grab;
+  font-size: 0.82rem;
+}
+
+.library-quote-chip:active {
+  cursor: grabbing;
+}
+
+.library-quote-chip--dragging {
+  opacity: 0.55;
+}
+
+.library-quote-chip__label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  cursor: grab;
+}
+
+.library-quote-chip__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-quote-chip__hint {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  user-select: none;
+}
+
+.dashboard-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.dashboard-product-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+}
+
+.dashboard-product-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dashboard-folder-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard-folder-chips__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.folder-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 600;
+  font-size: 0.78rem;
 }
 
 .chip--active {

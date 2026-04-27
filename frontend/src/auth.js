@@ -51,6 +51,9 @@ export function AuthProvider({ children }) {
     () => ({
       token,
       company,
+      user: company
+        ? { company: company.company_name || company.email || "Company" }
+        : null,
       isAuthenticated: Boolean(token),
       login,
       signup,

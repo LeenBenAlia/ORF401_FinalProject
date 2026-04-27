@@ -32,6 +32,7 @@ function UploadQuote() {
   const [groupBy, setGroupBy] = useState('supplier');
   const [outputMode, setOutputMode] = useState('excel');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [folderTileDrag, setFolderTileDrag] = useState(null);
 
   const loadGroups = useCallback(async () => {
     try {
@@ -187,22 +188,46 @@ function UploadQuote() {
             Pick an existing folder or create one; scanned files are tagged so they appear under that folder in your quote library.
           </p>
         </div>
-        <div className="upload-row upload-folder-bar__row">
-          <label className="upload-folder-select-wrap">
-            <span className="sr-only">Folder for this upload</span>
-            <select
-              className="upload-folder-select"
-              value={groupKey}
-              onChange={(e) => setGroupKey(e.target.value)}
-              aria-label="Folder for this upload"
+        <div
+          className="upload-folder-tiles"
+          role="group"
+          aria-label="Choose folder; you can also drop quote files onto a folder"
+        >
+          {groups.map((g) => (
+            <button
+              key={g}
+              type="button"
+              className={`upload-folder-tile${groupKey === g ? " upload-folder-tile--active" : ""}${
+                folderTileDrag === g ? " upload-folder-tile--dropping" : ""
+              }`}
+              onClick={() => setGroupKey(g)}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setFolderTileDrag(g);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setFolderTileDrag((cur) => (cur === g ? null : cur));
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setFolderTileDrag(null);
+                setGroupKey(g);
+                if (e.dataTransfer?.files?.length) {
+                  addFilesFromList(e.dataTransfer.files);
+                  setMessage(`Files added for upload to folder “${g}”.`);
+                }
+              }}
             >
-              {groups.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </label>
+              <span className="upload-folder-tile__name">{g}</span>
+              {groupKey === g && <span className="upload-folder-tile__badge">selected</span>}
+            </button>
+          ))}
         </div>
         <div className="upload-row upload-folder-bar__row">
           <input
