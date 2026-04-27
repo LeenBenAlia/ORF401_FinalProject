@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
-import api from '../api';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import api, { formatApiError } from '../api';
 
 function mergeQuoteFiles(prev, added) {
   const map = new Map();
@@ -24,12 +24,46 @@ function UploadQuote() {
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
   const [groupKey, setGroupKey] = useState('default');
+  const [groups, setGroups] = useState(['default']);
+  const [newFolderName, setNewFolderName] = useState('');
   const [lizSuggestions, setLizSuggestions] = useState([]);
   const [missingFields, setMissingFields] = useState([]);
   const [exportLayout, setExportLayout] = useState('same_sheet');
   const [groupBy, setGroupBy] = useState('supplier');
   const [outputMode, setOutputMode] = useState('excel');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const res = await api.get('/groups');
+      const list = res.data.groups?.length ? res.data.groups : ['default'];
+      setGroups(list);
+      setGroupKey((prev) => (list.includes(prev) ? prev : list[0]));
+    } catch {
+      setGroups(['default']);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
+
+  const createFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) {
+      setMessage('Enter a folder name to create.');
+      return;
+    }
+    try {
+      await api.post('/groups', { name });
+      setNewFolderName('');
+      await loadGroups();
+      setGroupKey(name);
+      setMessage(`Folder “${name}” created. New uploads will save there.`);
+    } catch (error) {
+      setMessage(formatApiError(error));
+    }
+  };
 
   const addFilesFromList = useCallback((fileList) => {
     const next = Array.from(fileList || []).filter(
@@ -99,11 +133,12 @@ function UploadQuote() {
     try {
       setUploading(true);
       const response = await api.post('upload', formData);
-      setMessage(response.data.message || 'Upload successful');
+      const base = response.data.message || 'Upload successful';
+      setMessage(`${base} Saved to folder “${groupKey}”.`);
       setData(response.data.data || []);
+      await loadGroups();
     } catch (error) {
-      const detail = error?.response?.data?.detail;
-      setMessage(`Upload failed: ${detail || error.message}`);
+      setMessage(`Upload failed: ${formatApiError(error)}`);
     } finally {
       setUploading(false);
     }
@@ -144,6 +179,50 @@ function UploadQuote() {
         Multi-select in the file dialog (Shift- or Cmd/Ctrl-click), drop files
         here, or use <strong>Choose quote files</strong> again to append more.
       </p>
+
+      <div className="upload-folder-bar">
+        <div className="upload-folder-bar__head">
+          <span className="upload-folder-bar__title">Save uploads to folder</span>
+          <p className="muted upload-folder-bar__lede">
+            Pick an existing folder or create one; scanned files are tagged so they appear under that folder in your quote library.
+          </p>
+        </div>
+        <div className="upload-row upload-folder-bar__row">
+          <label className="upload-folder-select-wrap">
+            <span className="sr-only">Folder for this upload</span>
+            <select
+              className="upload-folder-select"
+              value={groupKey}
+              onChange={(e) => setGroupKey(e.target.value)}
+              aria-label="Folder for this upload"
+            >
+              {groups.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="upload-row upload-folder-bar__row">
+          <input
+            type="text"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                createFolder();
+              }
+            }}
+            placeholder="New folder name"
+            aria-label="New folder name"
+          />
+          <button type="button" className="btn-minimal" onClick={createFolder}>
+            Create folder
+          </button>
+        </div>
+      </div>
 
       <div
         className={`upload-dropzone${dragOver ? ' upload-dropzone--active' : ''}`}
@@ -208,10 +287,6 @@ function UploadQuote() {
             <label>
               Product name
               <input value={productName} onChange={(e) => setProductName(e.target.value)} />
-            </label>
-            <label>
-              Folder/group
-              <input value={groupKey} onChange={(e) => setGroupKey(e.target.value)} />
             </label>
             <label>
               Output mode

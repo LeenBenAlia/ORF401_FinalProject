@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api from "../api";
+import api, { formatApiError } from "../api";
 
 function QuoteLibrary() {
   const [quotes, setQuotes] = useState([]);
@@ -21,7 +21,7 @@ function QuoteLibrary() {
         setTargetGroup(g.data.groups[0]);
       }
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message);
+      setError(formatApiError(err));
     }
   };
 

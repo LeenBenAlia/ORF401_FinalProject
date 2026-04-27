@@ -567,6 +567,66 @@ main .results-card {
   margin: 1rem 0 0.5rem;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.upload-folder-bar {
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #cfe0f5;
+  background: #f4f8ff;
+}
+
+.upload-folder-bar__head {
+  margin-bottom: 0.35rem;
+}
+
+.upload-folder-bar__title {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink, #0f172a);
+}
+
+.upload-folder-bar__lede {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.upload-folder-bar__row {
+  margin: 0.5rem 0 0;
+}
+
+.upload-folder-bar__row:first-of-type {
+  margin-top: 0.65rem;
+}
+
+.upload-folder-select-wrap {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.upload-folder-select {
+  width: 100%;
+  max-width: 22rem;
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #b8c9e6;
+  background: #fff;
+}
+
 .upload-dropzone {
   position: relative;
   border: 2px dashed #b8c9e6;
