@@ -1,5 +1,11 @@
 import React, { useState, useMemo, useCallback, useEffect, useId } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
+import {
+  buildTradeContextFromLines,
+  buildTariffLink,
+  buildFxLinkFromContext,
+} from '../utils/baselineTradeSignals';
 import {
   ResponsiveContainer,
   BarChart,
@@ -29,6 +35,13 @@ function lineUsd(item) {
 
 function formatUsd(n) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function routeLabel(route) {
+  if (route === 'sea') return 'Ocean freight';
+  if (route === 'air') return 'Air cargo';
+  if (route === 'land') return 'Rail / truck';
+  return route ? String(route) : '—';
 }
 
 const CHART_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#06b6d4', '#f43f5e'];
@@ -488,6 +501,14 @@ function ProductBaselinePage() {
 
   const comparisonRowsAll = useMemo(() => [...scenarioMatrix, ...savedEnriched], [scenarioMatrix, savedEnriched]);
 
+  const tradeCtxByRowId = useMemo(() => {
+    const map = {};
+    comparisonRowsAll.forEach((row) => {
+      map[row.id] = buildTradeContextFromLines(row.selectedLines || []);
+    });
+    return map;
+  }, [comparisonRowsAll]);
+
   const toggleScenarioVisible = (id) => {
     setVisibleScenarioIds((prev) => {
       const next = new Set(prev);
@@ -842,7 +863,10 @@ function ProductBaselinePage() {
                   {simulationResults.selectedLines.length === 0 ? (
                     <p className="muted">No quoted lines matched your selection.</p>
                   ) : (
-                    simulationResults.selectedLines.map((item) => (
+                    simulationResults.selectedLines.map((item) => {
+                      const lctx = buildTradeContextFromLines([item]);
+                      const lineLabel = `${item.supplierLabel} · ${item.sku}`;
+                      return (
                       <article key={`${item.sku}-${item.supplierQuoteId}`} className="component-summary">
                         <div className="component-header">
                           <strong>{item.name}</strong>
@@ -851,8 +875,22 @@ function ProductBaselinePage() {
                         <div className="component-meta">
                           Supplier: {item.supplierLabel} · {item.countryOfQuote}
                         </div>
+                        <div className="baseline-line-trade">
+                          <span className="baseline-line-trade-hint">{routeLabel(lctx.route)} · {lctx.tariffScore}/100</span>
+                          {' · '}
+                          <span className="baseline-fx-snippet">{lctx.fxInsight}</span>
+                        </div>
+                        <div className="baseline-line-trade-links">
+                          <Link className="baseline-trade-link" to={buildTariffLink([item], lineLabel)}>
+                            Tariff
+                          </Link>
+                          <Link className="baseline-trade-link" to={buildFxLinkFromContext(lctx, lineLabel)}>
+                            FX
+                          </Link>
+                        </div>
                       </article>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -871,6 +909,8 @@ function ProductBaselinePage() {
           <h2 style={{ margin: 0 }}>Scenario comparator & charts</h2>
           <p className="muted baseline-comparator-sub">
             Toggle which mixes appear in bars. Greedy presets explore price bounds; yellow row shows deltas vs cheapest visible mix.
+            Each scenario row estimates a transport lane (for tariff scoring) and quote-currency weights —{' '}
+            <Link to="/tariff">Tariff map</Link> and <Link to="/fx">FX desk</Link> links open prefilled detail for that mix.
           </p>
         </div>
 
@@ -883,11 +923,17 @@ function ProductBaselinePage() {
                 <th>Quoted BOM</th>
                 <th>Platform</th>
                 <th>Total (USD eq.)</th>
+                <th>Tariff lane · score</th>
+                <th>FX mix (quotes)</th>
                 <th>Δ vs cheapest shown</th>
               </tr>
             </thead>
             <tbody>
-              {comparisonRowsAll.map((row) => (
+              {comparisonRowsAll.map((row) => {
+                const tctx = tradeCtxByRowId[row.id];
+                const tariffHref = buildTariffLink(row.selectedLines || [], row.label);
+                const fxHref = buildFxLinkFromContext(tctx, row.label);
+                return (
                 <tr key={row.id} style={{ opacity: visibleScenarioIds.has(row.id) ? 1 : 0.45 }}>
                   <td>
                     <label className="baseline-table-check">
@@ -907,13 +953,29 @@ function ProductBaselinePage() {
                   <td>
                     <strong>{formatUsd(row.totalUsd)}</strong>
                   </td>
-                  <td>
+                  <td className="baseline-trade-cell">
+                    <div className="baseline-trade-line">
+                      <span>{routeLabel(tctx.route)}</span>
+                      <span className="baseline-trade-score">{tctx.tariffScore}/100</span>
+                    </div>
+                    <Link className="baseline-trade-link" to={tariffHref}>
+                      Tariff routes
+                    </Link>
+                  </td>
+                  <td className="baseline-trade-cell baseline-fx-mini">
+                    <div className="baseline-fx-snippet">{tctx.fxInsight}</div>
+                    <Link className="baseline-trade-link" to={fxHref}>
+                      FX insights
+                    </Link>
+                  </td>
+                  <td className="baseline-delta-cell">
                     {visibleScenarioIds.has(row.id)
                       ? `+${formatUsd(row.totalUsd - minTotalAcrossVisible)} vs min visible`
                       : '—'}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

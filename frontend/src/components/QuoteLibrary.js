@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import api, { formatApiError } from "../api";
+import { buildTariffLinkFromUploadedQuote } from "../utils/baselineTradeSignals";
 
 function QuoteLibrary() {
   const [quotes, setQuotes] = useState([]);
@@ -225,6 +227,14 @@ function QuoteLibrary() {
                     <span className="library-quote-chip__hint" aria-hidden="true">
                       ⋮⋮
                     </span>
+                    <Link
+                      to={buildTariffLinkFromUploadedQuote(q)}
+                      className="library-quote-chip__tariff"
+                      title="Open tariff map using this quote’s origin heuristic"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Tariff route
+                    </Link>
                     <button
                       type="button"
                       className="library-quote-chip__trash"

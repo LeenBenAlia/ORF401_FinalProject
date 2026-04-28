@@ -1,12 +1,11 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import QuotesPage from './pages/QuotesPage';
 import RiskHedgingPage from './pages/RiskHedgingPage';
-import ComparePage from './pages/ComparePage';
 import AuthPage from './pages/AuthPage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
@@ -49,6 +48,7 @@ function App() {
         />
         {/* Public coursework FX panel — localhost /fx loads without redirect to /auth */}
         <Route path="fx" element={<FXPage />} />
+        <Route path="compare" element={<Navigate to="/baseline" replace />} />
         <Route
           path="baseline"
           element={(
@@ -62,14 +62,6 @@ function App() {
           element={(
             <ProtectedRoute>
               <RiskHedgingPage />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="compare"
-          element={(
-            <ProtectedRoute>
-              <ComparePage />
             </ProtectedRoute>
           )}
         />

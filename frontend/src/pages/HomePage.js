@@ -33,7 +33,7 @@ const phases = [
   },
 ];
 
-/** Primary spine: ingest → organize → benchmark → simulate (risk tools are optional below). */
+/** Primary spine: ingest → organize → simulate BOM (risk tools are optional below). */
 const siteFlowSteps = [
   {
     step: '1',
@@ -53,17 +53,10 @@ const siteFlowSteps = [
   },
   {
     step: '3',
-    title: 'Benchmark',
-    subtitle: 'Compare',
-    detail: 'Line up suppliers and roll numbers without copy-pasting into spreadsheets.',
-    to: '/compare',
-    snippetSkin: 'flow-compare',
-  },
-  {
-    step: '4',
     title: 'Baseline',
     subtitle: 'Simulate BOM',
-    detail: 'Model component mixes against mocked quotes from your persona pack.',
+    detail:
+      'Model mixes against mocked persona quotes—with scenario charts that contrast presets, greedy bounds, and your picks.',
     to: '/baseline',
     snippetSkin: 'flow-baseline',
   },
@@ -92,16 +85,6 @@ function MiniPageSnippet({ variant }) {
             {[1, 2].map((r) => (
               <div key={r} className="home-mini-snippet__dash-row"><span /></div>
             ))}
-          </div>
-        </div>
-      );
-    case 'flow-compare':
-      return (
-        <div className="home-mini-snippet home-mini-snippet--compare">
-          <div className="home-mini-snippet__fake-nav">Compare</div>
-          <div className="home-mini-snippet__cols">
-            <div className="home-mini-snippet__col"><div className="bar" /></div>
-            <div className="home-mini-snippet__col"><div className="bar bar--b" /></div>
           </div>
         </div>
       );
@@ -167,7 +150,7 @@ function HomePage() {
               BlaiseAI ingests supplier pricing from{' '}
               <strong className="home-highlight">PDFs</strong>,{' '}
               <strong className="home-highlight">Excel workbooks</strong>, and{' '}
-              <strong className="home-highlight">exported emails</strong> (forwarded Outlook / Gmail dumps)
+              <strong className="home-highlight">exported emails</strong>
               —then turns line items into a searchable benchmark you can tie to tariff, FX, and route views—without
               the spreadsheet sprawl.
             </p>
@@ -218,7 +201,7 @@ function HomePage() {
           <p className="eyebrow eyebrow--on-light">Navigate the app</p>
           <h2 id="home-flow-heading">What this workspace does</h2>
           <p className="muted home-flow__lede">
-            Four stops from files to simulated BOM previews. Risk &amp; trade views are{' '}
+            Three stops from files to simulated BOM previews. Risk &amp; trade views are{' '}
             <strong className="home-flow__lede-strong">optional add-ons</strong> — expand below; they’re separate from the product roadmap timelines.
           </p>
         </div>
@@ -280,11 +263,6 @@ function HomePage() {
             a single normalization pass—before you compare totals or simulate baselines.
           </p>
         </div>
-        <ul className="value-strip__list">
-          <li>Multi-format quote digitization</li>
-          <li>Structured fields + country cues</li>
-          <li>Optional tariff / FX overlays (see More options)</li>
-        </ul>
       </section>
 
       <section className="roadmap home-roadmap" id="roadmap">
@@ -294,7 +272,7 @@ function HomePage() {
             Delivery themes over time—these milestones are&nbsp;
             <strong>not tied</strong>
             {' '}
-            to the four-step spine or to “risk exposure”; they summarize where experiments land each period.
+            to the three-step spine or to “risk exposure”; they summarize where experiments land each period.
           </p>
         </div>
         <div className="roadmap__track">
@@ -320,7 +298,7 @@ function HomePage() {
         <div>
           <h2>Ready to stress-test your next batch?</h2>
           <p>
-            Upload quotes from the dashboard, open Compare for side-by-side costs, spin the baseline simulator against
+            Upload quotes from the dashboard, skim folders in the library, then spin the baseline simulator against
             your persona pack. Open <strong>More options</strong> on the homepage when you need tariff / FX tooling.
           </p>
         </div>
@@ -331,8 +309,8 @@ function HomePage() {
           <Link to="/quotes" className="btn btn--ghost btn--on-dark">
             Quote digitize
           </Link>
-          <Link to="/compare" className="btn btn--ghost btn--on-dark">
-            Compare (beta)
+          <Link to="/dashboard" className="btn btn--ghost btn--on-dark">
+            Dashboard
           </Link>
         </div>
       </section>

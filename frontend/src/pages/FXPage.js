@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -21,6 +22,10 @@ const G10_CURRENCIES = [
   { code: 'SEK', name: 'Swedish Krona', flag: '🇸🇪' },
   { code: 'NZD', name: 'New Zealand Dollar', flag: '🇳🇿' },
   { code: 'NOK', name: 'Norwegian Krone', flag: '🇳🇴' },
+  { code: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' },
+  { code: 'TWD', name: 'Taiwan Dollar', flag: '🇹🇼' },
+  { code: 'MXN', name: 'Mexican Peso', flag: '🇲🇽' },
+  { code: 'KRW', name: 'Korean Won', flag: '🇰🇷' },
 ];
 
 const META_BY_CODE = Object.fromEntries(G10_CURRENCIES.map((c) => [c.code, c]));
@@ -35,6 +40,10 @@ const DEFAULT_CURRENCIES = [
   { code: 'NZD', rate: 0.61, trend: '+0.3%', volHint: 'High' },
   { code: 'SEK', rate: 0.09, trend: '-0.5%', volHint: 'Med' },
   { code: 'NOK', rate: 0.088, trend: '+0.0%', volHint: 'Med' },
+  { code: 'CNY', rate: 0.138, trend: '-0.1%', volHint: 'Med' },
+  { code: 'TWD', rate: 0.031, trend: '+0.2%', volHint: 'High' },
+  { code: 'MXN', rate: 0.058, trend: '-0.1%', volHint: 'Med' },
+  { code: 'KRW', rate: 0.00075, trend: '-0.3%', volHint: 'High' },
 ];
 
 /** Bloomberg Markets quote URL for FX vs USD where applicable */
@@ -159,6 +168,36 @@ function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
 }
 
+const FWD_LAB_TENORS = [
+  { id: '3M', label: '3 months', mo: 3 },
+  { id: '6M', label: '6 months', mo: 6 },
+  { id: '1Y', label: '12 months', mo: 12 },
+];
+
+/** Illustrative forwards curve — seeded, not tradable quotes. */
+function computeIllustrativeForward(spot, code, tenorMo) {
+  const mo = tenorMo || 6;
+  const basis = [...String(code)].reduce((acc, ch, i) => acc + ch.charCodeAt(i) * (19 + i), mo * 911);
+  const drift = ((((basis >>> 5) % 31) - 14) / 10000) * (mo / 12);
+  return spot * (1 + drift);
+}
+
+function forwardPointsPips(spot, fwd, code) {
+  if (!spot || !fwd) return 0;
+  const diff = Math.abs(fwd - spot);
+  if (['JPY', 'KRW'].includes(code)) return Math.round(diff * 100); // yen pips shorthand
+  return Math.round((diff / spot) * 10000); // majors
+}
+
+/** Naive payoff mock: payoff if forward lock vs hypothetical settlement spot. */
+function illustrativeHedgePnLUsd({ notionalUsd, spotRef, fwdLock, settleSpot, sidePayForeign }) {
+  if (!notionalUsd || !fwdLock) return 0;
+  const s = settleSpot || spotRef;
+  if (!s) return 0;
+  const rel = sidePayForeign === 'pay_foreign' ? (fwdLock - s) / s : (s - fwdLock) / s;
+  return Math.round(notionalUsd * clamp(rel, -0.25, 0.25));
+}
+
 function formatUsdSigned(n) {
   const fmt = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -171,12 +210,52 @@ function formatUsdSigned(n) {
 
 function FXPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [tracked, setTracked] = useState(DEFAULT_CURRENCIES);
   const [newCurrency, setNewCurrency] = useState('');
   const [focusedCode, setFocusedCode] = useState(DEFAULT_CURRENCIES[0]?.code ?? 'EUR');
   const [stressShockPct, setStressShockPct] = useState(3);
+  /** User-built forward mocks for the cockpit grid */
+  const [userForwardContracts, setUserForwardContracts] = useState([]);
+  /** Forward lab */
+  const [labCcy, setLabCcy] = useState('EUR');
+  const [labTenor, setLabTenor] = useState('6M');
+  const [labNotionalUsd, setLabNotionalUsd] = useState(750_000);
+  const [labSide, setLabSide] = useState('pay_foreign');
+  const [labSettleSpot, setLabSettleSpot] = useState('');
 
   const daySeed = Math.floor(Date.now() / 86400000);
+
+  const fromBaseline = searchParams.get('from') === 'baseline';
+  const baselineScenario = searchParams.get('scenario');
+  const baselineInsight = searchParams.get('insight');
+
+  useEffect(() => {
+    if (searchParams.get('from') !== 'baseline') return;
+    const raw = searchParams.get('focus');
+    if (!raw) return;
+    const codes = raw
+      .split(',')
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    if (!codes.length) return;
+    setTracked((prev) => {
+      const have = new Set(prev.map((x) => x.code));
+      const next = [...prev];
+      codes.forEach((code) => {
+        if (have.has(code)) return;
+        have.add(code);
+        next.push({
+          code,
+          rate: 1.0,
+          trend: '—',
+          volHint: 'Med',
+        });
+      });
+      return next;
+    });
+    setFocusedCode(codes[0]);
+  }, [searchParams]);
 
   const originCountry = user?.company ? COMPANY_ORIGINS[user.company] || 'Global' : 'Global';
   const exposureLevel = COUNTRY_EXPOSURE[originCountry] || 'Standard';
@@ -189,19 +268,37 @@ function FXPage() {
     return map;
   }, [tracked, daySeed]);
 
+  const labTenorMo = FWD_LAB_TENORS.find((t) => t.id === labTenor)?.mo ?? 6;
+  const labSpotRef = tracked.find((t) => t.code === labCcy)?.rate ?? 1;
+  const labFwdLock = useMemo(
+    () => computeIllustrativeForward(labSpotRef, labCcy, labTenorMo),
+    [labSpotRef, labCcy, labTenorMo]
+  );
+  const labSettleParsed = labSettleSpot.trim() === '' ? labSpotRef : parseFloat(labSettleSpot.replace(/,/g, ''));
+  const labSettleOk = Number.isFinite(labSettleParsed) ? labSettleParsed : labSpotRef;
+  const labPnl = illustrativeHedgePnLUsd({
+    notionalUsd: labNotionalUsd,
+    spotRef: labSpotRef,
+    fwdLock: labFwdLock,
+    settleSpot: labSettleOk,
+    sidePayForeign: labSide,
+  });
+
   const forwardsStressed = useMemo(() => {
     const m = clamp(stressShockPct, 0, 12) / 100;
-    return SAMPLE_FORWARDS.map((row) => ({
+    const stressRow = (row) => ({
       ...row,
       stressedUsd: Math.round(row.riskUsd * (1 + m)),
-    }));
-  }, [stressShockPct]);
+    });
+    return [...SAMPLE_FORWARDS.map(stressRow), ...userForwardContracts.map(stressRow)];
+  }, [stressShockPct, userForwardContracts]);
 
   const forwardsAgg = useMemo(() => {
-    const sumAbs = SAMPLE_FORWARDS.reduce((acc, row) => acc + Math.abs(row.riskUsd), 0);
+    const baseRows = [...SAMPLE_FORWARDS, ...userForwardContracts];
+    const sumAbs = baseRows.reduce((acc, row) => acc + Math.abs(row.riskUsd), 0);
     const stressed = forwardsStressed.reduce((acc, row) => acc + Math.abs(row.stressedUsd), 0);
     return { nominalAbsUsd: sumAbs, stressedScenarioAbsUsd: stressed };
-  }, [forwardsStressed]);
+  }, [userForwardContracts, forwardsStressed]);
 
   const currencyRisk = useMemo(() => {
     return {
@@ -239,6 +336,39 @@ function FXPage() {
     }
   }, []);
 
+  const addLabForwardToCockpit = useCallback(() => {
+    const id = `LAB-${Date.now()}`;
+    const pair = `${labCcy}/USD`;
+    const tenorLabel = FWD_LAB_TENORS.find((t) => t.id === labTenor)?.label || labTenor;
+    const row = {
+      id,
+      pair,
+      buyBaseCcy: labCcy,
+      notionalUsd: labNotionalUsd,
+      settlement: tenorLabel,
+      spotRef:
+        labCcy === 'JPY' || labCcy === 'KRW'
+          ? Number(labSpotRef.toFixed(labCcy === 'KRW' ? 6 : 5))
+          : Number(labSpotRef.toFixed(4)),
+      fwdAllIn:
+        labCcy === 'JPY' || labCcy === 'KRW'
+          ? Number(labFwdLock.toFixed(labCcy === 'KRW' ? 6 : 5))
+          : Number(labFwdLock.toFixed(4)),
+      descr: `Mock forward (${labSide === 'pay_foreign' ? 'pay foreign' : 'receive foreign'}, lab)`,
+      riskUsd: illustrativeHedgePnLUsd({
+        notionalUsd: labNotionalUsd,
+        spotRef: labSpotRef,
+        fwdLock: labFwdLock,
+        settleSpot: labSettleOk,
+        sidePayForeign: labSide,
+      }),
+      tier: 'Med',
+      hedgeCoveragePct: 50,
+      isUserLab: true,
+    };
+    setUserForwardContracts((prev) => [...prev, row]);
+  }, [labCcy, labFwdLock, labNotionalUsd, labSettleOk, labSide, labTenor, labSpotRef]);
+
   const displayNameFor = (item) =>
     META_BY_CODE[item.code]?.name ||
     item.name ||
@@ -247,6 +377,21 @@ function FXPage() {
 
   return (
     <main className="page page--wide fx-page">
+      {fromBaseline && (
+        <aside className="panel card-soft fx-baseline-import" role="note">
+          <p className="muted" style={{ margin: 0 }}>
+            <strong>Baseline mix</strong>
+            {baselineScenario ? `: ${baselineScenario}` : ''}. FX share is illustrative.
+            {baselineInsight ? (
+              <>
+                <br />
+                <span style={{ color: 'var(--ink)' }}>{baselineInsight}</span>
+              </>
+            ) : null}
+          </p>
+        </aside>
+      )}
+
       <header className="page__header fx-page__hero">
         <p className="eyebrow">FX exposure</p>
         <h1>G10 currency desk</h1>
@@ -462,10 +607,112 @@ function FXPage() {
         </div>
       </section>
 
+      <section className="panel card-soft fx-forward-lab">
+        <div className="fx-forward-lab__head">
+          <div>
+            <h2>Forward lab — draft &amp; stress-test contracts</h2>
+            <p className="muted fx-page__fineprint">
+              Inputs use the mid from your watchlist (or 1.0 if the code isn’t tracked). Outputs are illustrative
+              coursework mocks — plug your own treasury ladder for real trades.
+            </p>
+          </div>
+        </div>
+        <div className="fx-forward-lab__grid">
+          <label className="fx-forward-lab__field">
+            <span>Currency vs USD</span>
+            <select className="fx-forward-lab__select" value={labCcy} onChange={(e) => setLabCcy(e.target.value)}>
+              {tracked.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.code} ({displayNameFor(item)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="fx-forward-lab__field">
+            <span>Settlement tenor</span>
+            <select className="fx-forward-lab__select" value={labTenor} onChange={(e) => setLabTenor(e.target.value)}>
+              {FWD_LAB_TENORS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="fx-forward-lab__field">
+            <span>Exposure (USD-equiv notional)</span>
+            <input
+              type="number"
+              className="fx-forward-lab__input"
+              min={5000}
+              step={5000}
+              value={labNotionalUsd}
+              onChange={(e) => setLabNotionalUsd(Number(e.target.value) || 0)}
+            />
+          </label>
+          <fieldset className="fx-forward-lab__field fx-forward-lab__fieldset">
+            <legend>Hedge intuition</legend>
+            <label className="fx-forward-lab__radio">
+              <input type="radio" name="fwdSide" checked={labSide === 'pay_foreign'} onChange={() => setLabSide('pay_foreign')} />
+              Pay supplier in quote currency later
+            </label>
+            <label className="fx-forward-lab__radio">
+              <input type="radio" name="fwdSide" checked={labSide === 'receive_foreign'} onChange={() => setLabSide('receive_foreign')} />
+              Receive proceeds in quote currency later
+            </label>
+          </fieldset>
+          <label className="fx-forward-lab__field">
+            <span>Hypothetical spot at expiry (stress test vs mid)</span>
+            <input
+              type="text"
+              className="fx-forward-lab__input"
+              placeholder={String(labSpotRef)}
+              value={labSettleSpot}
+              onChange={(e) => setLabSettleSpot(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="fx-forward-lab__results panel card-soft fx-forward-lab__band">
+          <div className="fx-forward-lab__cols">
+            <div>
+              <span className="muted">Mid (watchlist)</span>
+              <strong className="fx-forward-lab__num">{labSpotRef.toFixed(['JPY', 'KRW'].includes(labCcy) ? (labCcy === 'KRW' ? 6 : 5) : 4)}</strong>
+            </div>
+            <div>
+              <span className="muted">Mock forward ({labTenor})</span>
+              <strong className="fx-forward-lab__num">{labFwdLock.toFixed(['JPY', 'KRW'].includes(labCcy) ? (labCcy === 'KRW' ? 6 : 5) : 4)}</strong>
+            </div>
+            <div>
+              <span className="muted">Points (illus.)</span>
+              <strong className="fx-forward-lab__num">{forwardPointsPips(labSpotRef, labFwdLock, labCcy)}</strong>
+            </div>
+            <div>
+              <span className="muted">Est. payoff @ stress spot</span>
+              <strong className={`fx-forward-lab__pnl ${labPnl <= 0 ? 'fx-forward-lab__pnl--loss' : 'fx-forward-lab__pnl--gain'}`}>
+                {formatUsdSigned(labPnl)}
+              </strong>
+            </div>
+          </div>
+          <div className="fx-forward-lab__actions">
+            <button type="button" className="btn btn--primary" onClick={addLabForwardToCockpit}>
+              Add result to cockpit below
+            </button>
+            {userForwardContracts.filter((x) => x.isUserLab).length > 0 && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setUserForwardContracts((prev) => prev.filter((r) => !r.isUserLab))}
+              >
+                Clear lab entries
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="panel card-soft fx-forwards">
         <div className="fx-forwards__head">
           <div>
-            <h2>Sample forward contracts — risk cockpit</h2>
+            <h2>Forward contracts cockpit (sample + your lab adds)</h2>
             <p className="muted fx-page__fineprint">
               Hypothetical payables/forwards pegged to your procurement scenario (education only — not transactional).
               Tune the adverse-move slider to visualize how tenor and residual FX gap affect mark-to-market.
@@ -497,7 +744,10 @@ function FXPage() {
 
         <div className="fx-forwards-grid">
           {forwardsStressed.map((row) => (
-            <article key={row.id} className={`fx-forward-card fx-forward-tier--${row.tier.toLowerCase()}`}>
+            <article
+              key={row.id}
+              className={`fx-forward-card fx-forward-tier--${row.tier.toLowerCase()}${row.isUserLab ? ' fx-forward-card--lab' : ''}`}
+            >
               <header>
                 <strong>{row.pair}</strong>
                 <span className="muted">{row.id}</span>
