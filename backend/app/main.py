@@ -25,6 +25,16 @@ app.include_router(export.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 
 
+@app.on_event("startup")
+async def startup_load_persistent_store():
+    """Restore companies then quotes/folders — stable company ids tie quotes to the right tenant."""
+    from .routes.auth import hydrate_company_store
+    from .routes.quotes import hydrate_quote_store
+
+    hydrate_company_store()
+    hydrate_quote_store()
+
+
 @app.get("/api/v1/health")
 async def health():
     """Lightweight check so you can verify the API is running before signing in."""

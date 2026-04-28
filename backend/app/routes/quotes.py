@@ -16,6 +16,7 @@ from ..models.quote import (
     QuoteIdsRequest,
 )
 from .auth import get_company_from_auth_header
+from .. import persistence
 
 router = APIRouter()
 
@@ -26,6 +27,21 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 QUOTE_STORE: List[Dict[str, Any]] = []
 NEXT_ID = 1
 GROUP_STORE: Dict[str, List[str]] = {}
+
+def _persist_quote_state() -> None:
+    persistence.save_quotes_bundle(QUOTE_STORE, NEXT_ID, GROUP_STORE)
+
+
+def hydrate_quote_store() -> None:
+    """Load quotes + folders from disk (call after auth/companies hydrate on API startup)."""
+    global NEXT_ID
+    ql, nid, gs = persistence.load_quotes_bundle()
+    QUOTE_STORE.clear()
+    QUOTE_STORE.extend(ql)
+    GROUP_STORE.clear()
+    GROUP_STORE.update(gs)
+    NEXT_ID = nid
+
 
 BASELINE_FIELDS = [
     "product_name",
@@ -273,6 +289,8 @@ async def upload_quote(
                 detail=f"Unable to process '{file.filename}'. Please confirm it is a valid quote file. {exc}",
             ) from exc
 
+    _persist_quote_state()
+
     return {
         "message": f"Processed {len(results)} quote file(s)",
         "data": results,
@@ -317,6 +335,7 @@ async def move_quotes_to_trash(payload: QuoteIdsRequest, authorization: str = He
         q["trashed"] = True
         q["group_key"] = RESERVED_TRASH_FOLDER
         updated += 1
+    _persist_quote_state()
     return {"updated_count": updated}
 
 
@@ -340,6 +359,7 @@ async def restore_quotes_from_trash(payload: QuoteIdsRequest, authorization: str
         if restore_key not in GROUP_STORE[company_id]:
             GROUP_STORE[company_id].append(restore_key)
         updated += 1
+    _persist_quote_state()
     return {"updated_count": updated}
 
 @router.get("/quotes/{quote_id}")
@@ -380,6 +400,7 @@ async def create_group(payload: GroupCreateRequest, authorization: str = Header(
         raise HTTPException(status_code=400, detail="That name is reserved for the system.")
     if group_name not in GROUP_STORE[company_id]:
         GROUP_STORE[company_id].append(group_name)
+    _persist_quote_state()
     return {"groups": GROUP_STORE[company_id]}
 
 
@@ -407,4 +428,5 @@ async def assign_quotes_to_group(payload: AssignGroupRequest, authorization: str
                 continue
             quote["group_key"] = group_name
             updated += 1
+    _persist_quote_state()
     return {"updated_count": updated, "group": group_name}

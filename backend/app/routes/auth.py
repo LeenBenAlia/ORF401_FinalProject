@@ -4,6 +4,8 @@ from typing import Dict, Optional
 import hashlib
 import uuid
 
+from .. import persistence
+
 router = APIRouter()
 
 
@@ -42,7 +44,13 @@ def _seed_companies() -> None:
             }
 
 
-_seed_companies()
+def hydrate_company_store() -> None:
+    """Restore registered companies from disk (stable ids), then ensure seed demo accounts exist."""
+    disk = persistence.load_company_store()
+    if disk:
+        COMPANY_STORE.update(disk)
+    _seed_companies()
+    persistence.save_company_store(COMPANY_STORE)
 
 
 def get_company_from_auth_header(authorization: Optional[str]) -> Dict[str, str]:
@@ -71,6 +79,7 @@ async def signup(payload: SignupRequest):
     }
     token = uuid.uuid4().hex
     SESSION_STORE[token] = email
+    persistence.save_company_store(COMPANY_STORE)
     return {"token": token, "company": {k: v for k, v in COMPANY_STORE[email].items() if k != "password_hash"}}
 
 

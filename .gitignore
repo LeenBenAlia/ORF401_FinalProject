@@ -13,6 +13,7 @@ frontend/build/
 # App data (local only)
 backend/uploads/
 backend/exports/
+backend/data/*.json
 *.sqlite3
 
 # Env
