@@ -138,6 +138,7 @@ function UploadQuote() {
       setMessage(`${base} Saved to folder “${groupKey}”.`);
       setData(response.data.data || []);
       await loadGroups();
+      window.dispatchEvent(new CustomEvent('quotes:changed'));
     } catch (error) {
       setMessage(`Upload failed: ${formatApiError(error)}`);
     } finally {

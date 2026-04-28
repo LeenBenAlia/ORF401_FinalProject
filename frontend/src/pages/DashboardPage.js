@@ -16,21 +16,34 @@ function DashboardPage() {
   const [quotes, setQuotes] = useState([]);
   const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoadError('');
-        const res = await api.get('/quotes');
-        if (!cancelled) setQuotes(res.data.quotes || []);
-      } catch (e) {
-        if (!cancelled) setLoadError(formatApiError(e));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const refreshQuotes = React.useCallback(async () => {
+    try {
+      setLoadError('');
+      const res = await api.get('/quotes');
+      setQuotes(res.data.quotes || []);
+    } catch (e) {
+      setLoadError(formatApiError(e));
+    }
   }, []);
+
+  useEffect(() => {
+    refreshQuotes();
+    const onQuotesChanged = () => refreshQuotes();
+    window.addEventListener('quotes:changed', onQuotesChanged);
+    return () => window.removeEventListener('quotes:changed', onQuotesChanged);
+  }, [refreshQuotes]);
+
+  const moveQuoteToTrash = async (quoteId, filename) => {
+    if (!window.confirm(`Move “${filename}” to Trash?`)) return;
+    try {
+      setLoadError('');
+      await api.post('/quotes/trash', { quote_ids: [quoteId] });
+      setQuotes((prev) => prev.filter((q) => q.id !== quoteId));
+      window.dispatchEvent(new CustomEvent('quotes:changed'));
+    } catch (e) {
+      setLoadError(formatApiError(e));
+    }
+  };
 
   const productFolderRows = useMemo(() => {
     const byProduct = new Map();
@@ -105,6 +118,9 @@ function DashboardPage() {
                   <th>Folder</th>
                   <th>File</th>
                   <th>Product</th>
+                  <th scope="col" className="dashboard-actions-col">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -118,6 +134,16 @@ function DashboardPage() {
                       <td>{q.group_key || 'default'}</td>
                       <td>{q.filename}</td>
                       <td>{productLabel(q)}</td>
+                      <td className="dashboard-actions-col">
+                        <button
+                          type="button"
+                          className="btn-quote-trash"
+                          title="Move to Trash"
+                          onClick={() => moveQuoteToTrash(q.id, q.filename)}
+                        >
+                          Trash
+                        </button>
+                      </td>
                     </tr>
                   ))}
               </tbody>

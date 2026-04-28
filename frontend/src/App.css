@@ -2785,6 +2785,69 @@ pre {
   user-select: none;
 }
 
+.library-quote-chip__trash {
+  font-size: 0.62rem;
+  padding: 0.15rem 0.42rem;
+  border-radius: 6px;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: rgba(254, 242, 242, 0.95);
+  color: #b91c1c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.library-quote-chip__trash:hover {
+  border-color: #ef4444;
+  background: #fee2e2;
+}
+
+.dashboard-actions-col {
+  white-space: nowrap;
+  width: 4.75rem;
+  text-align: right;
+}
+
+.btn-quote-trash {
+  font-size: 0.78rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(254, 242, 242, 0.9);
+  color: #b91c1c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.btn-quote-trash:hover {
+  background: #fecaca;
+  border-color: #f87171;
+}
+
+.quote-trash-panel {
+  margin-top: 0;
+}
+
+.quote-trash-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.quote-trash-table th:last-child,
+.quote-trash-table td:last-child {
+  text-align: right;
+}
+
+.quote-trash-panel h2 {
+  margin: 0 0 0.35rem;
+}
+
 .dashboard-product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

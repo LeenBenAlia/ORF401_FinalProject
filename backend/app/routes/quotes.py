@@ -13,10 +13,13 @@ from ..models.quote import (
     LizFieldRecommendationRequest,
     GroupCreateRequest,
     AssignGroupRequest,
+    QuoteIdsRequest,
 )
 from .auth import get_company_from_auth_header
 
 router = APIRouter()
+
+RESERVED_TRASH_FOLDER = "__trash"
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -252,6 +255,7 @@ async def upload_quote(
                 "company_id": company_id,
                 "filename": file.filename,
                 "group_key": group_key,
+                "trashed": False,
                 "source_type": os.path.splitext(file.filename)[1].lower(),
                 "extracted": extracted,
                 "selected_fields": selected_fields,
@@ -280,8 +284,63 @@ async def upload_quote(
 @router.get("/quotes")
 async def get_quotes(authorization: str = Header(None)):
     company = get_company_from_auth_header(authorization)
-    quotes = [q for q in QUOTE_STORE if q.get("company_id") == company["id"]]
+    quotes = [
+        q
+        for q in QUOTE_STORE
+        if q.get("company_id") == company["id"] and not q.get("trashed")
+    ]
     return {"quotes": quotes}
+
+
+@router.get("/quotes/trash")
+async def get_trashed_quotes(authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    quotes = [
+        q
+        for q in QUOTE_STORE
+        if q.get("company_id") == company["id"] and q.get("trashed")
+    ]
+    return {"quotes": quotes}
+
+
+@router.post("/quotes/trash")
+async def move_quotes_to_trash(payload: QuoteIdsRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    updated = 0
+    for q in QUOTE_STORE:
+        if q["id"] not in payload.quote_ids or q.get("company_id") != company_id:
+            continue
+        if q.get("trashed"):
+            continue
+        q["previous_group_key"] = q.get("group_key") or "default"
+        q["trashed"] = True
+        q["group_key"] = RESERVED_TRASH_FOLDER
+        updated += 1
+    return {"updated_count": updated}
+
+
+@router.post("/quotes/restore")
+async def restore_quotes_from_trash(payload: QuoteIdsRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    updated = 0
+    company_id_not_in_group = company_id not in GROUP_STORE
+    if company_id_not_in_group:
+        GROUP_STORE[company_id] = ["default"]
+
+    for q in QUOTE_STORE:
+        if q["id"] not in payload.quote_ids or q.get("company_id") != company_id:
+            continue
+        if not q.get("trashed"):
+            continue
+        restore_key = q.pop("previous_group_key", None) or "default"
+        q["trashed"] = False
+        q["group_key"] = restore_key
+        if restore_key not in GROUP_STORE[company_id]:
+            GROUP_STORE[company_id].append(restore_key)
+        updated += 1
+    return {"updated_count": updated}
 
 @router.get("/quotes/{quote_id}")
 async def get_quote(quote_id: int):
@@ -292,8 +351,11 @@ async def get_quote(quote_id: int):
 async def compare_quotes(quote_ids: List[int], authorization: str = Header(None)):
     company = get_company_from_auth_header(authorization)
     selected = [
-        quote for quote in QUOTE_STORE
-        if quote["id"] in quote_ids and quote.get("company_id") == company["id"]
+        quote
+        for quote in QUOTE_STORE
+        if quote["id"] in quote_ids
+        and quote.get("company_id") == company["id"]
+        and not quote.get("trashed")
     ]
     return {"comparison": selected}
 
@@ -314,6 +376,8 @@ async def create_group(payload: GroupCreateRequest, authorization: str = Header(
     group_name = payload.name.strip()
     if not group_name:
         raise HTTPException(status_code=400, detail="Group name is required")
+    if group_name == RESERVED_TRASH_FOLDER or group_name.startswith("__"):
+        raise HTTPException(status_code=400, detail="That name is reserved for the system.")
     if group_name not in GROUP_STORE[company_id]:
         GROUP_STORE[company_id].append(group_name)
     return {"groups": GROUP_STORE[company_id]}
@@ -326,6 +390,11 @@ async def assign_quotes_to_group(payload: AssignGroupRequest, authorization: str
     group_name = payload.group_name.strip()
     if not group_name:
         raise HTTPException(status_code=400, detail="Group name is required")
+    if group_name == RESERVED_TRASH_FOLDER or group_name.startswith("__"):
+        raise HTTPException(
+            status_code=400,
+            detail="Reserved folder name. Move items to Trash from the dashboard or Quotes page.",
+        )
     if company_id not in GROUP_STORE:
         GROUP_STORE[company_id] = ["default"]
     if group_name not in GROUP_STORE[company_id]:
@@ -334,6 +403,8 @@ async def assign_quotes_to_group(payload: AssignGroupRequest, authorization: str
     updated = 0
     for quote in QUOTE_STORE:
         if quote["id"] in payload.quote_ids and quote.get("company_id") == company_id:
+            if quote.get("trashed"):
+                continue
             quote["group_key"] = group_name
             updated += 1
     return {"updated_count": updated, "group": group_name}

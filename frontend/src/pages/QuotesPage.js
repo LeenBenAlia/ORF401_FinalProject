@@ -1,6 +1,7 @@
 import React from 'react';
 import UploadQuote from '../components/UploadQuote';
 import QuoteLibrary from '../components/QuoteLibrary';
+import QuoteTrashPanel from '../components/QuoteTrashPanel';
 import { useAuth } from '../auth';
 
 function QuotesPage() {
@@ -20,6 +21,8 @@ function QuotesPage() {
       <UploadQuote />
       <div style={{ height: '1rem' }} />
       <QuoteLibrary />
+      <div style={{ height: '1rem' }} />
+      <QuoteTrashPanel />
     </main>
   );
 }

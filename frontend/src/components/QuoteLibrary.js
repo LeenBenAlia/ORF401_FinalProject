@@ -29,6 +29,12 @@ function QuoteLibrary() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const onQuotesChanged = () => load();
+    window.addEventListener("quotes:changed", onQuotesChanged);
+    return () => window.removeEventListener("quotes:changed", onQuotesChanged);
+  }, [load]);
+
   const createGroup = async () => {
     if (!newGroup.trim()) return;
     try {
@@ -49,6 +55,18 @@ function QuoteLibrary() {
       });
       setSelectedQuoteIds([]);
       await load();
+    } catch (err) {
+      setError(formatApiError(err));
+    }
+  };
+
+  const trashQuote = async (quoteId) => {
+    if (!window.confirm("Move this quote to Trash?")) return;
+    try {
+      setError("");
+      await api.post("/quotes/trash", { quote_ids: [quoteId] });
+      await load();
+      window.dispatchEvent(new CustomEvent("quotes:changed"));
     } catch (err) {
       setError(formatApiError(err));
     }
@@ -207,6 +225,18 @@ function QuoteLibrary() {
                     <span className="library-quote-chip__hint" aria-hidden="true">
                       ⋮⋮
                     </span>
+                    <button
+                      type="button"
+                      className="library-quote-chip__trash"
+                      title="Move to Trash"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trashQuote(q.id);
+                      }}
+                    >
+                      Trash
+                    </button>
                   </li>
                 ))}
               </ul>

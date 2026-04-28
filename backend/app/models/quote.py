@@ -46,3 +46,7 @@ class GroupCreateRequest(BaseModel):
 class AssignGroupRequest(BaseModel):
     quote_ids: List[int] = Field(default_factory=list)
     group_name: str
+
+
+class QuoteIdsRequest(BaseModel):
+    quote_ids: List[int] = Field(default_factory=list)
