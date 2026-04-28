@@ -1,14 +1,39 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+/** Quarterly themes — snippets echo real areas of the app; not the same spine as “What this workspace does” above. */
 const phases = [
-  { quarter: 'Q1', title: 'Core digitization', status: 'done', items: ['Multi-file upload', 'Email & Excel parsing', 'Library & folders'] },
-  { quarter: 'Q2', title: 'Compare & baselines', status: 'active', items: ['Cross-supplier views', 'Product cost baseline simulator', 'Quote library by folder'] },
-  { quarter: 'Q3', title: 'Risk & geography', status: 'next', items: ['Tariff snapshots', 'FX desk', 'World logistics map'] },
-  { quarter: 'Q4', title: 'Integrations', status: 'planned', items: ['API hooks', 'Deeper dashboards', 'Team workspaces'] },
+  {
+    quarter: 'Q1',
+    title: 'Core digitization',
+    status: 'done',
+    snippet: 'ingest',
+    items: ['Multi-file upload', 'Email & Excel parsing', 'Library & folders'],
+  },
+  {
+    quarter: 'Q2',
+    title: 'Compare & baselines',
+    status: 'active',
+    snippet: 'baseline',
+    items: ['Cross-supplier views', 'Product baseline simulator', 'Quote library by folder'],
+  },
+  {
+    quarter: 'Q3',
+    title: 'Risk & geography',
+    status: 'next',
+    snippet: 'trade',
+    items: ['Trade-lane overlays', 'Tariff / duty snapshots', 'Logistics globe view'],
+  },
+  {
+    quarter: 'Q4',
+    title: 'Integrations',
+    status: 'planned',
+    snippet: 'integrations',
+    items: ['API hooks', 'Deeper dashboards', 'Team workspaces'],
+  },
 ];
 
-/** High-level navigation of what this SPA offers (links honor auth gates where configured). */
+/** Primary spine: ingest → organize → benchmark → simulate (risk tools are optional below). */
 const siteFlowSteps = [
   {
     step: '1',
@@ -16,6 +41,7 @@ const siteFlowSteps = [
     subtitle: 'Uploads',
     detail: 'Pull structure from PDFs, Excel / CSV sheets, or forwarded-email exports.',
     to: '/quotes',
+    snippetSkin: 'flow-quotes',
   },
   {
     step: '2',
@@ -23,6 +49,7 @@ const siteFlowSteps = [
     subtitle: 'Organize',
     detail: 'Group quotes into folders, filter by supplier, revisit history in one view.',
     to: '/dashboard',
+    snippetSkin: 'flow-dash',
   },
   {
     step: '3',
@@ -30,6 +57,7 @@ const siteFlowSteps = [
     subtitle: 'Compare',
     detail: 'Line up suppliers and roll numbers without copy-pasting into spreadsheets.',
     to: '/compare',
+    snippetSkin: 'flow-compare',
   },
   {
     step: '4',
@@ -37,17 +65,94 @@ const siteFlowSteps = [
     subtitle: 'Simulate BOM',
     detail: 'Model component mixes against mocked quotes from your persona pack.',
     to: '/baseline',
-  },
-  {
-    step: '5',
-    title: 'Exposure',
-    subtitle: 'Risk',
-    detail: 'Layer tariff routes and FX context before you lock sourcing decisions.',
-    to: '/tariff',
-    secondaryTo: '/fx',
-    secondaryLabel: 'FX',
+    snippetSkin: 'flow-baseline',
   },
 ];
+
+function MiniPageSnippet({ variant }) {
+  switch (variant) {
+    case 'flow-quotes':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--quotes">
+          <div className="home-mini-snippet__fake-nav">Quote digitization</div>
+          <div className="home-mini-snippet__dropzone">Drop supplier files</div>
+          <div className="home-mini-snippet__row"><span /></div>
+          <div className="home-mini-snippet__row muted-line"><span /></div>
+        </div>
+      );
+    case 'flow-dash':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--dash">
+          <div className="home-mini-snippet__fake-nav">Dashboard</div>
+          <div className="home-mini-snippet__chips">
+            <span>Folders</span>
+            <span>Summary</span>
+          </div>
+          <div className="home-mini-snippet__rows">
+            {[1, 2].map((r) => (
+              <div key={r} className="home-mini-snippet__dash-row"><span /></div>
+            ))}
+          </div>
+        </div>
+      );
+    case 'flow-compare':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--compare">
+          <div className="home-mini-snippet__fake-nav">Compare</div>
+          <div className="home-mini-snippet__cols">
+            <div className="home-mini-snippet__col"><div className="bar" /></div>
+            <div className="home-mini-snippet__col"><div className="bar bar--b" /></div>
+          </div>
+        </div>
+      );
+    case 'flow-baseline':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--baseline">
+          <div className="home-mini-snippet__fake-nav">Baseline</div>
+          <div className="home-mini-snippet__chart">
+            <span /><span /><span /><span />
+          </div>
+          <div className="home-mini-snippet__legend"><i /><i /><i /></div>
+        </div>
+      );
+    case 'ingest':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--ingest roadmap-snippet-variant">
+          <div className="home-mini-snippet__dropzone">Upload area</div>
+          <div className="home-mini-snippet__filelist">
+            <span>quote_bundle.pdf</span>
+            <span>lines.xls</span>
+          </div>
+        </div>
+      );
+    case 'baseline':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--road-base roadmap-snippet-variant">
+          <div className="home-mini-snippet__split">
+            <div className="home-mini-snippet__mini-table"><span /><span /><span /></div>
+            <div className="home-mini-snippet__bars"><span /><span /></div>
+          </div>
+        </div>
+      );
+    case 'trade':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--trade roadmap-snippet-variant">
+          <div className="home-mini-snippet__globe-strip" aria-hidden />
+          <div className="home-mini-snippet__route-dots"><i /><i /><i /></div>
+          <span className="home-mini-snippet__caption">Lanes · duties · map</span>
+        </div>
+      );
+    case 'integrations':
+      return (
+        <div className="home-mini-snippet home-mini-snippet--integrations roadmap-snippet-variant">
+          <pre className="home-mini-snippet__code">{`POST /quotes\nWebhook · API key`}</pre>
+          <div className="home-mini-snippet__plugs"><span /><span /><span /></div>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
 
 function HomePage() {
   return (
@@ -72,9 +177,6 @@ function HomePage() {
               </Link>
               <Link to="/baseline" className="btn btn--hero-secondary">
                 Try product baseline
-              </Link>
-              <Link to="/fx" className="btn home-hero__btn-muted">
-                Explore FX desk
               </Link>
             </div>
             <p className="meta-line meta-line--on-dark">
@@ -116,7 +218,8 @@ function HomePage() {
           <p className="eyebrow eyebrow--on-light">Navigate the app</p>
           <h2 id="home-flow-heading">What this workspace does</h2>
           <p className="muted home-flow__lede">
-            A straight path from files on disk to sourcing decisions—with each stop mapped to a page in BlaiseAI.
+            Four stops from files to simulated BOM previews. Risk &amp; trade views are{' '}
+            <strong className="home-flow__lede-strong">optional add-ons</strong> — expand below; they’re separate from the product roadmap timelines.
           </p>
         </div>
         <div className="home-flow__track">
@@ -126,21 +229,14 @@ function HomePage() {
                 <div className="home-flow-slide" role="listitem">
                   <div className="home-flow-step__card">
                     <span className="home-flow-step__num">{s.step}</span>
+                    <MiniPageSnippet variant={s.snippetSkin} />
                     <strong className="home-flow-step__title">{s.title}</strong>
                     <span className="home-flow-step__subtitle">{s.subtitle}</span>
                     <p className="home-flow-step__detail">{s.detail}</p>
                     <div className="home-flow-step__links">
                       <Link to={s.to} className="home-flow-step__cta">
-                        Open →
+                        Open page →
                       </Link>
-                      {s.secondaryTo && (
-                        <>
-                          {' · '}
-                          <Link to={s.secondaryTo} className="home-flow-step__cta home-flow-step__cta--ghost">
-                            {s.secondaryLabel} →
-                          </Link>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -149,6 +245,31 @@ function HomePage() {
             ))}
           </div>
         </div>
+
+        <details className="home-flow-more">
+          <summary className="home-flow-more__summary">
+            More options · risk exposure (tariff · FX · routes)
+          </summary>
+          <div className="home-flow-more__body">
+            <p className="muted home-flow-more__lede">
+              Use these layers after your quotes are normalized. They don’t ladder into the same sequence as each quarter below — pick what fits your review.
+            </p>
+            <div className="home-flow-more__grid">
+              <Link to="/tariff" className="home-flow-more__tile">
+                <span className="home-flow-more__tile-title">Tariff risk</span>
+                <span className="muted">Lanes, duties, geopolitical context.</span>
+              </Link>
+              <Link to="/fx" className="home-flow-more__tile">
+                <span className="home-flow-more__tile-title">FX desk</span>
+                <span className="muted">Forward-style scenarios &amp; illustrative curves.</span>
+              </Link>
+              <Link to="/risk" className="home-flow-more__tile">
+                <span className="home-flow-more__tile-title">Hedging sketch</span>
+                <span className="muted">Beta risk overlays on mock positions.</span>
+              </Link>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section className="value-strip home-values">
@@ -162,18 +283,24 @@ function HomePage() {
         <ul className="value-strip__list">
           <li>Multi-format quote digitization</li>
           <li>Structured fields + country cues</li>
-          <li>Baseline, tariff, and FX overlays</li>
+          <li>Optional tariff / FX overlays (see More options)</li>
         </ul>
       </section>
 
       <section className="roadmap home-roadmap" id="roadmap">
         <div className="section-header">
           <h2>Product roadmap</h2>
-          <p>Landing zones for experimentation—priorities evolve with how teams ingest and stress-test quotes.</p>
+          <p>
+            Delivery themes over time—these milestones are&nbsp;
+            <strong>not tied</strong>
+            {' '}
+            to the four-step spine or to “risk exposure”; they summarize where experiments land each period.
+          </p>
         </div>
         <div className="roadmap__track">
           {phases.map((phase) => (
             <article key={phase.quarter} className={`roadmap-card roadmap-card--${phase.status}`}>
+              <MiniPageSnippet variant={phase.snippet} />
               <div className="roadmap-card__head">
                 <span className="roadmap-card__q">{phase.quarter}</span>
                 <h3>{phase.title}</h3>
@@ -194,7 +321,7 @@ function HomePage() {
           <h2>Ready to stress-test your next batch?</h2>
           <p>
             Upload quotes from the dashboard, open Compare for side-by-side costs, spin the baseline simulator against
-            your persona pack, then layer Tariff routing and FX on top.
+            your persona pack. Open <strong>More options</strong> on the homepage when you need tariff / FX tooling.
           </p>
         </div>
         <div className="hero-cta">
