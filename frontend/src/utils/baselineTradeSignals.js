@@ -103,6 +103,42 @@ export function decodeTariffBreakdownBd(raw) {
   }
 }
 
+/** Product baseline page syncs options here for the Tariff picker. */
+export const BASELINE_TARIFF_SESSION_KEY = 'blaise_tariff_baseline_options';
+
+/**
+ * @param {{supplierLabel?: string,countryOfQuote?: string,lineUsd?: number,sku?:string,name?:string}[]} selectedLines
+ * @returns {{supplier:string,country:string,sku:string,name:string,usd:number}[]}
+ */
+export function breakdownRowsFromSelectedLines(selectedLines) {
+  if (!selectedLines?.length) return [];
+  return selectedLines.map((l) => ({
+    supplier: String(l.supplierLabel || '—').slice(0, 120),
+    country: String(l.countryOfQuote || '').slice(0, 80),
+    sku: String(l.sku || '').slice(0, 64),
+    name: String(l.name || '').slice(0, 120),
+    usd: Math.max(0, Math.round(Number(l.lineUsd) || 0)),
+  }));
+}
+
+/**
+ * @param {object} record Quote library record with extracted + filename
+ */
+export function breakdownRowsFromUploadedQuoteRecord(record) {
+  const ex = record?.extracted || {};
+  const price = Number(ex.price);
+  const lineUsd = Number.isFinite(price) ? price : 0;
+  return [
+    {
+      supplier: typeof ex.supplier === 'string' ? ex.supplier : '—',
+      country: typeof ex.country === 'string' ? ex.country : '',
+      sku: record?.id != null ? `#${record.id}` : '',
+      name: record?.filename || '',
+      usd: Math.round(lineUsd),
+    },
+  ];
+}
+
 /** @param {string} laneId */
 export function routeLaneShortLabel(laneId) {
   const m = { sea: 'Ocean freight', air: 'Air cargo', land: 'Rail / truck' };

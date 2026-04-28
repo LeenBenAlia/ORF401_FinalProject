@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import WorldMapMonitor from '../components/WorldMapMonitor';
-import { useAuth } from '../auth';
+import api, { formatApiError } from '../api';
+import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
 import {
   decodeTariffBreakdownBd,
   inferTransportRoute,
   routeLaneShortLabel,
   tariffRiskScoreForRoute,
+  BASELINE_TARIFF_SESSION_KEY,
+  breakdownRowsFromSelectedLines,
+  breakdownRowsFromUploadedQuoteRecord,
 } from '../utils/baselineTradeSignals';
 
 const ROUTES = [
@@ -52,11 +56,19 @@ function formatUsd0(n) {
   );
 }
 
+function normalizeDecodedBd(rawList) {
+  return rawList.map((r) => ({
+    supplier: r.supplier || '—',
+    country: r.country || '',
+    sku: r.sku || '',
+    name: r.name || '',
+    usd: Math.max(0, Math.round(Number(r.usd) || 0)),
+  }));
+}
+
 function TariffPage() {
-  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeRoute, setActiveRoute] = useState(() => searchParams.get('route') || 'sea');
-  const company = user?.company || 'Your company';
   const tariffScore = 100 - (activeRoute === 'air' ? 28 : activeRoute === 'land' ? 16 : 35);
   const fromBaseline = searchParams.get('from') === 'baseline';
   const fromQuotes = searchParams.get('from') === 'quotes';
@@ -65,16 +77,69 @@ function TariffPage() {
   const baselineScoreHint = searchParams.get('score');
   const bdRaw = searchParams.get('bd');
 
+  const [sourceTab, setSourceTab] = useState('quotes');
+  const [quotesList, setQuotesList] = useState([]);
+  const [quotesLoadErr, setQuotesLoadErr] = useState('');
+  const [selectedQuoteId, setSelectedQuoteId] = useState('');
+  const [baselineOptions, setBaselineOptions] = useState([]);
+  const [selectedBaselineId, setSelectedBaselineId] = useState('');
+
+  const refreshBaselineOptions = useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem(BASELINE_TARIFF_SESSION_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setBaselineOptions(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setBaselineOptions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBaselineOptions();
+    const onStorage = (e) => {
+      if (e.key === BASELINE_TARIFF_SESSION_KEY || e.key === null) refreshBaselineOptions();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [refreshBaselineOptions]);
+
+  useEffect(() => {
+    if (usesStaticGithubPagesDemo()) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        setQuotesLoadErr('');
+        const res = await api.get('/quotes');
+        if (!cancelled) setQuotesList(res.data.quotes || []);
+      } catch (err) {
+        if (!cancelled) setQuotesLoadErr(formatApiError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rowsFromUrl = useMemo(() => normalizeDecodedBd(decodeTariffBreakdownBd(bdRaw)), [bdRaw]);
+
   const breakdownRows = useMemo(() => {
-    const raw = decodeTariffBreakdownBd(bdRaw);
-    return raw.map((r) => ({
-      supplier: r.supplier || '—',
-      country: r.country || '',
-      sku: r.sku || '',
-      name: r.name || '',
-      usd: Math.max(0, Math.round(Number(r.usd) || 0)),
-    }));
-  }, [bdRaw]);
+    if (sourceTab === 'quotes' && selectedQuoteId) {
+      const q = quotesList.find((x) => String(x.id) === String(selectedQuoteId));
+      if (q) return breakdownRowsFromUploadedQuoteRecord(q);
+    }
+    if (sourceTab === 'baseline' && selectedBaselineId) {
+      const row = baselineOptions.find((x) => x.id === selectedBaselineId);
+      if (row?.lines?.length) return breakdownRowsFromSelectedLines(row.lines);
+    }
+    return rowsFromUrl;
+  }, [
+    sourceTab,
+    selectedQuoteId,
+    selectedBaselineId,
+    quotesList,
+    baselineOptions,
+    rowsFromUrl,
+  ]);
 
   const breakdownEnriched = useMemo(() => {
     const total = breakdownRows.reduce((acc, r) => acc + r.usd, 0) || 0;
@@ -99,7 +164,9 @@ function TariffPage() {
     if (r === 'sea' || r === 'air' || r === 'land') setActiveRoute(r);
   }, [searchParams]);
 
-  const showBanner = fromBaseline || fromQuotes || breakdownRows.length > 0;
+  const showBanner = fromBaseline || fromQuotes || rowsFromUrl.length > 0;
+  const pickerOverridesUrl =
+    (sourceTab === 'quotes' && selectedQuoteId) || (sourceTab === 'baseline' && selectedBaselineId);
 
   return (
     <main className="page page--wide tariff-page">
@@ -118,7 +185,7 @@ function TariffPage() {
                 {baselineScenario ? `: ${baselineScenario}` : ''}.
               </>
             )}
-            {!fromBaseline && !fromQuotes && breakdownRows.length > 0 ? (
+            {!fromBaseline && !fromQuotes && rowsFromUrl.length > 0 ? (
               <>Imported <strong>sourcing line breakdown</strong> (see table below).</>
             ) : null}
             {baselineCountries ? (
@@ -143,74 +210,167 @@ function TariffPage() {
           <p className="eyebrow">Tariff risk</p>
           <h1>Tariff and trade-route view</h1>
           <p className="lede lede--muted">
-            Track tariff sensitivity across lanes and inspect how mocked supplier geography maps to illustrative route
-            stress scores. Align the map with preset baselines below, or open this page from the baseline comparator / an
-            uploaded quote to see line-level origins.
+            Track tariff sensitivity across lanes and inspect how supplier geography maps to illustrative route stress scores.
+            Choose a digitized quote or a product-baseline scenario below, or open this page from baseline / quote links (URL
+            import).
           </p>
         </div>
       </header>
 
-      {breakdownRows.length > 0 && (
+      {(breakdownRows.length > 0 || pickerOverridesUrl) && (
         <section className="panel card-soft tariff-breakdown-panel">
           <div className="tariff-breakdown-head">
-            <h2>Supplier sourcing routes (from simulation or upload)</h2>
+            <h2>Supplier sourcing routes</h2>
             <p className="muted tariff-breakdown-lede">
-              Each row uses the country heuristic from digitized quoting (same lane model as the active map).{' '}
-              <strong>BOM share</strong> is based on USD-equivalent line weights when present; single-quote uploads use the
-              extracted line value.
+              Each row uses the same country → lane heuristic as the map. BOM share weights lines by USD when available.
+              {pickerOverridesUrl ? (
+                <>
+                  {' '}
+                  <strong>Showing picker selection</strong> (overrides URL import until you clear the dropdown).
+                </>
+              ) : null}
             </p>
-            {blendLane && (
+            {blendLane && breakdownRows.length > 0 && (
               <p className="tariff-blend-summary">
                 <strong>Blend across lines:</strong> {blendLane.routeLabel} · score{' '}
                 <strong>{blendLane.score}/100</strong> · origins: {blendLane.uniq.join(', ') || '—'}
               </p>
             )}
           </div>
-          <div className="tariff-breakdown-scroll">
-            <table className="tariff-breakdown-table">
-              <thead>
-                <tr>
-                  <th>Supplier / line</th>
-                  <th>Origin</th>
-                  <th>USD eq.</th>
-                  <th>Share</th>
-                  <th>Inferred lane</th>
-                  <th>Tariff risk</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdownEnriched.map((r, i) => (
-                  <tr key={`${r.sku}-${r.name}-${i}`}>
-                    <td>
-                      <strong>{r.supplier}</strong>
-                      {r.name ? (
-                        <span className="muted tariff-bd-sub">{r.name}</span>
-                      ) : null}
-                      {r.sku ? <span className="muted tariff-bd-sub">{r.sku}</span> : null}
-                    </td>
-                    <td>{r.country || '—'}</td>
-                    <td>{formatUsd0(r.usd)}</td>
-                    <td>{r.share ? `${r.share}%` : '—'}</td>
-                    <td>{r.routeLabel}</td>
-                    <td>
-                      <span className="tariff-bd-score">{r.score}/100</span>
-                    </td>
+          {breakdownRows.length === 0 ? (
+            <p className="muted">Select a quote or baseline scenario in the panel below, or open this page from a Tariff link.</p>
+          ) : (
+            <div className="tariff-breakdown-scroll">
+              <table className="tariff-breakdown-table">
+                <thead>
+                  <tr>
+                    <th>Supplier / line</th>
+                    <th>Origin</th>
+                    <th>USD eq.</th>
+                    <th>Share</th>
+                    <th>Inferred lane</th>
+                    <th>Tariff risk</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {breakdownEnriched.map((r, i) => (
+                    <tr key={`${r.sku}-${r.name}-${i}`}>
+                      <td>
+                        <strong>{r.supplier}</strong>
+                        {r.name ? <span className="muted tariff-bd-sub">{r.name}</span> : null}
+                        {r.sku ? <span className="muted tariff-bd-sub">{r.sku}</span> : null}
+                      </td>
+                      <td>{r.country || '—'}</td>
+                      <td>{formatUsd0(r.usd)}</td>
+                      <td>{r.share ? `${r.share}%` : '—'}</td>
+                      <td>{r.routeLabel}</td>
+                      <td>
+                        <span className="tariff-bd-score">{r.score}/100</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
 
       <div className="risk-grid">
-        <section className="panel risk-panel">
-          <h2>Company context</h2>
-          <p className="muted">
-            Signed in as <strong>{company}</strong>. Supplier tariffs are shaped by origin countries, trade documentation,
-            and route choice.
-          </p>
-          <dl className="kv">
+        <section className="panel risk-panel tariff-source-panel">
+          <h2>Tariff inputs</h2>
+          <div className="tariff-source-seg" role="tablist" aria-label="Calculation source">
+            <button
+              type="button"
+              className={sourceTab === 'quotes' ? 'seg__btn is-on' : 'seg__btn'}
+              onClick={() => {
+                setSourceTab('quotes');
+              }}
+            >
+              Digitized quotes
+            </button>
+            <button
+              type="button"
+              className={sourceTab === 'baseline' ? 'seg__btn is-on' : 'seg__btn'}
+              onClick={() => {
+                setSourceTab('baseline');
+              }}
+            >
+              Product baseline
+            </button>
+          </div>
+
+          {sourceTab === 'quotes' && (
+            <div className="tariff-picker-block">
+              {usesStaticGithubPagesDemo() ? (
+                <p className="muted">
+                  The quote library API is not available on this static preview. Host the backend and set REACT_APP_API_BASE_URL,
+                  or use <strong>Product baseline</strong> after visiting that page in this browser, or open Tariff from a quote link when hosted.
+                </p>
+              ) : (
+                <>
+                  {quotesLoadErr ? <p className="error-text tariff-error-compact">{quotesLoadErr}</p> : null}
+                  <label className="tariff-picker-label">
+                    Scanned quote
+                    <select
+                      className="tariff-picker-select"
+                      value={selectedQuoteId}
+                      onChange={(e) => setSelectedQuoteId(e.target.value)}
+                    >
+                      <option value="">— Use URL import only —</option>
+                      {quotesList.map((q) => (
+                        <option key={q.id} value={q.id}>
+                          #{q.id} · {q.filename}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+            </div>
+          )}
+
+          {sourceTab === 'baseline' && (
+            <div className="tariff-picker-block">
+              <p className="muted tariff-source-hint">
+                Scenarios are saved when you use <strong>Product baseline simulation</strong> (same browser session). Open baseline,
+                load vehicle presets or saved mixes, then pick a row here.
+              </p>
+              <label className="tariff-picker-label">
+                Baseline scenario
+                <select
+                  className="tariff-picker-select"
+                  value={selectedBaselineId}
+                  onChange={(e) => setSelectedBaselineId(e.target.value)}
+                >
+                  <option value="">— Use URL import only —</option>
+                  {baselineOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="btn btn--ghost btn--sm tariff-refresh-baseline" onClick={refreshBaselineOptions}>
+                Refresh list from baseline page
+              </button>
+            </div>
+          )}
+
+          {(selectedQuoteId || selectedBaselineId) && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm tariff-clear-pick"
+              onClick={() => {
+                setSelectedQuoteId('');
+                setSelectedBaselineId('');
+              }}
+            >
+              Clear picker (use URL import)
+            </button>
+          )}
+
+          <dl className="kv tariff-source-kv">
             <div>
               <dt>Active lane (map)</dt>
               <dd>{routeLaneShortLabel(activeRoute)}</dd>
@@ -261,8 +421,8 @@ function TariffPage() {
         <section className="panel risk-panel">
           <h2>Conflict and customs watch</h2>
           <p className="muted">
-            These zones are visible on trade routes when you need to align supplier choice with import clearance and
-            insurance planning.
+            These zones are visible on trade routes when you need to align supplier choice with import clearance and insurance
+            planning.
           </p>
           <ul className="list-check">
             <li>Red Sea: shipping insurance and vessel diversion risk.</li>

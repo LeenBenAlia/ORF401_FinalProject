@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import api, { formatApiError } from "../api";
 import { buildTariffLinkFromUploadedQuote } from "../utils/baselineTradeSignals";
+import { usesStaticGithubPagesDemo } from "../githubPagesDemo";
 
 function QuoteLibrary() {
   const [quotes, setQuotes] = useState([]);
@@ -17,6 +18,11 @@ function QuoteLibrary() {
   const load = useCallback(async () => {
     try {
       setError("");
+      if (usesStaticGithubPagesDemo()) {
+        setQuotes([]);
+        setGroups(["default"]);
+        return;
+      }
       const [q, g] = await Promise.all([api.get("/quotes"), api.get("/groups")]);
       setQuotes(q.data.quotes || []);
       const nextGroups = g.data.groups?.length ? g.data.groups : ["default"];
@@ -139,6 +145,12 @@ function QuoteLibrary() {
         Folders are columns below. <strong>Drag</strong> a quote onto another folder to move it, or select quotes and use the move row.
         Drop quote files on the upload page onto a folder tile to queue them there.
       </p>
+      {usesStaticGithubPagesDemo() && (
+        <p className="quote-library-api-note" role="note">
+          <strong>GitHub Pages preview:</strong> folders and uploads need the FastAPI backend. Run locally or deploy the API and set{' '}
+          <code className="quote-library-code">REACT_APP_API_BASE_URL</code> on build.
+        </p>
+      )}
       {error && <p className="error-text">{error}</p>}
 
       <div className="upload-row">

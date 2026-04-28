@@ -5,6 +5,7 @@ import {
   buildTradeContextFromLines,
   buildTariffLink,
   buildFxLinkFromContext,
+  BASELINE_TARIFF_SESSION_KEY,
 } from '../utils/baselineTradeSignals';
 import {
   ResponsiveContainer,
@@ -500,6 +501,25 @@ function ProductBaselinePage() {
   );
 
   const comparisonRowsAll = useMemo(() => [...scenarioMatrix, ...savedEnriched], [scenarioMatrix, savedEnriched]);
+
+  useEffect(() => {
+    try {
+      const payload = comparisonRowsAll.map((row) => ({
+        id: row.id,
+        label: row.label,
+        lines: (row.selectedLines || []).map((l) => ({
+          supplierLabel: l.supplierLabel,
+          countryOfQuote: l.countryOfQuote,
+          lineUsd: l.lineUsd,
+          sku: l.sku,
+          name: l.name,
+        })),
+      }));
+      sessionStorage.setItem(BASELINE_TARIFF_SESSION_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [comparisonRowsAll]);
 
   const tradeCtxByRowId = useMemo(() => {
     const map = {};

@@ -3200,6 +3200,71 @@ pre {
   margin: 0;
   font-size: 0.9rem;
   white-space: pre-line;
+  max-height: 7rem;
+  overflow: auto;
+}
+
+.tariff-error-compact {
+  max-height: 5rem;
+}
+
+.quote-library-api-note {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border-left: 4px solid #6366f1;
+  background: rgba(238, 242, 255, 0.95);
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+}
+
+.quote-library-code {
+  font-size: 0.82em;
+}
+
+.tariff-source-panel .tariff-source-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.tariff-picker-block {
+  margin-bottom: 1rem;
+}
+
+.tariff-picker-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.tariff-picker-select {
+  max-width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font: inherit;
+}
+
+.tariff-source-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+}
+
+.tariff-refresh-baseline {
+  margin-top: 0.5rem;
+}
+
+.tariff-clear-pick {
+  margin-top: 0.65rem;
+}
+
+.tariff-source-kv {
+  margin-top: 1rem;
 }
 
 .preset-box {

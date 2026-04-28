@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api, { formatApiError } from '../api';
+import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
 
 function QuoteTrashPanel() {
   const [trashed, setTrashed] = useState([]);
@@ -11,6 +12,10 @@ function QuoteTrashPanel() {
     try {
       setLoading(true);
       setError('');
+      if (usesStaticGithubPagesDemo()) {
+        setTrashed([]);
+        return;
+      }
       const res = await api.get('/quotes/trash');
       setTrashed(res.data.quotes || []);
     } catch (err) {
@@ -58,6 +63,11 @@ function QuoteTrashPanel() {
           Refresh
         </button>
       </header>
+      {usesStaticGithubPagesDemo() && (
+        <p className="quote-library-api-note" role="note">
+          <strong>Preview:</strong> Trash sync uses the API — unavailable on static GitHub Pages without a hosted backend.
+        </p>
+      )}
       {error && <p className="error-text">{error}</p>}
       {!loading && trashed.length === 0 && (
         <p className="muted">Trash is empty.</p>
