@@ -2,9 +2,8 @@
 #
 # ONE-TIME SETUP (required or you will see "there isn't a GitHub Pages site"):
 #   1. Repo → Settings → Pages
-#   2. Under "Build and deployment" → Source: choose "GitHub Actions" (not "Deploy from a branch")
-#   3. Push to main (or run this workflow manually). After the first green run, open:
-#      https://LeenBenAlia.github.io/ORF401_FinalProject/
+#   2. Under "Build and deployment" → Source: choose "GitHub Actions"
+#   3. After a green run: https://LeenBenAlia.github.io/ORF401_FinalProject/
 #
 # If you rename the repository, update PUBLIC_URL below to /YourNewRepoName
 name: Deploy frontend to GitHub Pages
@@ -27,11 +26,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -49,7 +48,7 @@ jobs:
         run: cp frontend/build/index.html frontend/build/404.html
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: frontend/build
 
@@ -62,4 +61,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
