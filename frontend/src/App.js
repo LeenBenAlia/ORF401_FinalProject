@@ -47,14 +47,8 @@ function App() {
             </ProtectedRoute>
           )}
         />
-        <Route
-          path="fx"
-          element={(
-            <ProtectedRoute>
-              <FXPage />
-            </ProtectedRoute>
-          )}
-        />
+        {/* Public coursework FX panel — localhost /fx loads without redirect to /auth */}
+        <Route path="fx" element={<FXPage />} />
         <Route
           path="baseline"
           element={(

@@ -6,10 +6,12 @@
 #
 # If your repository name is not ORF401_FinalProject, change PUBLIC_URL below to /YourRepoName
 #
-# Run manually from Actions when you want a GitHub Pages build. Day-to-day dev uses localhost
-# (see frontend/.env.development — PORT=3001, PUBLIC_URL root for Heroku-style hosts).
+# Pushes to main update the live GitHub Pages site. You can also run this workflow manually.
+# Local dev (localhost:3001) uses frontend/.env.development — that does not affect CI builds.
 name: Deploy frontend to GitHub Pages
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
