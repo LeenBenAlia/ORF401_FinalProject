@@ -23,6 +23,9 @@ export function formatApiError(error) {
   if (!error || typeof error !== 'object') {
     return 'Something went wrong.';
   }
+  if (error.message && !error.response && error.code === 'STATIC_PAGES_NO_API') {
+    return error.message;
+  }
   if (!error.response) {
     return (
       error.message ||
@@ -32,6 +35,11 @@ export function formatApiError(error) {
   const { status, data } = error.response;
   if (typeof data === 'string' && data.trim()) {
     const text = data.trim();
+    if (status === 405 && /<title>405/i.test(text)) {
+      return (
+        'The server rejected this request (405). On GitHub Pages there is no API — use the demo logins on the login page, or deploy the FastAPI backend and set REACT_APP_API_BASE_URL when building the site.'
+      );
+    }
     if (text.includes('Could not proxy') || text.includes('ECONNREFUSED')) {
       return `${text}\n\nTip: open a second terminal, run: cd backend && uvicorn app.main:app --reload --port 8000`;
     }

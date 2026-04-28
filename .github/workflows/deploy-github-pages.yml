@@ -6,6 +6,10 @@
 #   3. After a green run: https://LeenBenAlia.github.io/ORF401_FinalProject/
 #
 # If you rename the repository, update PUBLIC_URL below to /YourNewRepoName
+#
+# Optional: add repo secret REACT_APP_API_BASE_URL with your hosted FastAPI root
+# (e.g. https://your-api.onrender.com/api/v1/) so login and quotes hit a real backend.
+# Without it, GitHub Pages uses built-in demo logins only (see frontend/src/githubPagesDemo.js).
 name: Deploy frontend to GitHub Pages
 
 on:

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { formatApiError } from '../api';
+import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
 
 function LoginPage() {
   const { login } = useAuth();
@@ -29,6 +30,13 @@ function LoginPage() {
           Use one of the example company accounts or sign up with your own procurement team. 
           Once logged in, you can view company-specific quote workflows and risk insights.
         </p>
+        {usesStaticGithubPagesDemo() && (
+          <p className="muted" style={{ marginTop: '0.75rem', maxWidth: '36rem' }}>
+            <strong>GitHub Pages preview:</strong> this site is static, so only the three demo accounts below can sign in
+            without a hosted API. Quote uploads and the dashboard need the FastAPI backend — set the{' '}
+            <code style={{ fontSize: '0.85em' }}>REACT_APP_API_BASE_URL</code> secret in GitHub Actions and redeploy, or run the app locally with the backend.
+          </p>
+        )}
       </header>
       <section className="panel card-soft auth-card">
         <form onSubmit={handleSubmit}>

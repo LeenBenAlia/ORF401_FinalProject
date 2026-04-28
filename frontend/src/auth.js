@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import api from "./api";
+import { matchStaticDemoLogin, usesStaticGithubPagesDemo } from "./githubPagesDemo";
 
 const AuthContext = createContext(null);
 
@@ -27,12 +28,25 @@ export function AuthProvider({ children }) {
   }, [company]);
 
   const login = async (email, password) => {
+    const demo = matchStaticDemoLogin(email, password);
+    if (demo) {
+      setToken(demo.token);
+      setCompany(demo.company);
+      return;
+    }
     const response = await api.post("/auth/login", { email, password });
     setToken(response.data.token);
     setCompany(response.data.company);
   };
 
   const signup = async (companyName, email, password) => {
+    if (usesStaticGithubPagesDemo()) {
+      const err = new Error(
+        "This GitHub Pages preview has no live API, so new accounts cannot be created here. Use a demo login (Tesla / SpaceX / Nvidia) or host the backend and set the REACT_APP_API_BASE_URL build secret, then redeploy."
+      );
+      err.code = "STATIC_PAGES_NO_API";
+      throw err;
+    }
     const response = await api.post("/auth/signup", {
       company_name: companyName,
       email,
