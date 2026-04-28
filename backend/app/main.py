@@ -14,7 +14,7 @@ origin_list = [origin.strip() for origin in allowed_origins.split(",") if origin
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origin_list,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|https://[A-Za-z0-9-]+\.github\.io$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

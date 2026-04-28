@@ -1,0 +1,53 @@
+# Serves the React app at: https://LeenBenAlia.github.io/ORF401_FinalProject/
+# In the repo: Settings → Pages → Build: GitHub Actions → select this workflow, then re-run.
+name: Deploy frontend to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install and build
+        working-directory: frontend
+        env:
+          CI: false
+          # GitHub project site path (must match the repo name)
+          PUBLIC_URL: /ORF401_FinalProject
+          # Optional: when the FastAPI API is hosted publicly, add repo secret with full API base URL, e.g. https://api.example.com/api/v1/
+          REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: SPA fallback for direct links (React Router on GitHub Pages)
+        run: cp frontend/build/index.html frontend/build/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

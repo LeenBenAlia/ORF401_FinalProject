@@ -8,8 +8,8 @@ import { AuthProvider } from './auth';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
+      <AuthProvider>
+      <BrowserRouter basename={process.env.PUBLIC_URL || ""}>
         <App />
       </BrowserRouter>
     </AuthProvider>
