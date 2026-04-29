@@ -13,6 +13,12 @@ import {
   breakdownRowsFromUploadedQuoteRecord,
 } from '../utils/baselineTradeSignals';
 
+function severityClass(level) {
+  if (level === 'Critical') return 'severity-critical';
+  if (level === 'Elevated') return 'severity-elevated';
+  return 'severity-moderate';
+}
+
 const ROUTES = [
   {
     id: 'sea',
@@ -83,6 +89,9 @@ function TariffPage() {
   const [selectedQuoteId, setSelectedQuoteId] = useState('');
   const [baselineOptions, setBaselineOptions] = useState([]);
   const [selectedBaselineId, setSelectedBaselineId] = useState('');
+  const [worldIntelData, setWorldIntelData] = useState(null);
+  const [worldIntelLoading, setWorldIntelLoading] = useState(true);
+  const [worldIntelError, setWorldIntelError] = useState('');
 
   const refreshBaselineOptions = useCallback(() => {
     try {
@@ -119,6 +128,35 @@ function TariffPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (usesStaticGithubPagesDemo()) {
+      setWorldIntelData(null);
+      setWorldIntelLoading(false);
+      setWorldIntelError('');
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setWorldIntelLoading(true);
+        setWorldIntelError('');
+        const res = await api.get('/world-intel');
+        if (!cancelled) setWorldIntelData(res.data || null);
+      } catch (err) {
+        if (!cancelled) setWorldIntelError(formatApiError(err));
+      } finally {
+        if (!cancelled) setWorldIntelLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const intelKpis = useMemo(() => worldIntelData?.kpis || [], [worldIntelData]);
+  const intelCountryRows = useMemo(() => worldIntelData?.countryIntel || [], [worldIntelData]);
+  const intelEscalationFeed = useMemo(() => worldIntelData?.escalationFeed || [], [worldIntelData]);
 
   const rowsFromUrl = useMemo(() => normalizeDecodedBd(decodeTariffBreakdownBd(bdRaw)), [bdRaw]);
 
@@ -216,6 +254,31 @@ function TariffPage() {
           </p>
         </div>
       </header>
+
+      {(intelKpis.length > 0 || worldIntelLoading) && (
+        <section className="worldintel-kpis">
+          {(worldIntelLoading
+            ? [
+                { label: 'Loading', value: '...', delta: 'Fetching quote-derived signals' },
+                { label: 'Loading', value: '...', delta: 'Fetching quote-derived signals' },
+                { label: 'Loading', value: '...', delta: 'Fetching quote-derived signals' },
+                { label: 'Loading', value: '...', delta: 'Fetching quote-derived signals' },
+              ]
+            : intelKpis
+          ).map((kpi, idx) => (
+            <article key={`${kpi.label}-${idx}`} className="worldintel-kpi-card">
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+              <small>{kpi.delta}</small>
+            </article>
+          ))}
+        </section>
+      )}
+      {worldIntelError ? (
+        <section className="panel">
+          <p className="error-text" style={{ margin: 0 }}>{worldIntelError}</p>
+        </section>
+      ) : null}
 
       {(breakdownRows.length > 0 || pickerOverridesUrl) && (
         <section className="panel card-soft tariff-breakdown-panel">
@@ -418,19 +481,63 @@ function TariffPage() {
           />
         </section>
 
-        <section className="panel risk-panel">
-          <h2>Conflict and customs watch</h2>
-          <p className="muted">
-            These zones are visible on trade routes when you need to align supplier choice with import clearance and insurance
-            planning.
-          </p>
-          <ul className="list-check">
-            <li>Red Sea: shipping insurance and vessel diversion risk.</li>
-            <li>Taiwan Strait: microchip and electronic sourcing pressure.</li>
-            <li>Eastern Europe: elevated tariff review and logistics delays.</li>
-          </ul>
+        <section className="panel risk-panel worldintel-card">
+          <h3>Escalation feed</h3>
+          <div className="worldintel-feed">
+            {intelEscalationFeed.map((item) => (
+              <div key={item.id} className="worldintel-feed-item">
+                <span className={`worldintel-severity ${severityClass(item.level)}`}>{item.level}</span>
+                <strong>{item.title}</strong>
+                <p className="muted">{item.summary}</p>
+                <div className="worldintel-tags">
+                  {item.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  <i>{item.region}</i>
+                </div>
+              </div>
+            ))}
+            {!worldIntelLoading && intelEscalationFeed.length === 0 && (
+              <p className="muted">No escalation items for current quote mix.</p>
+            )}
+          </div>
         </section>
       </div>
+
+      <section className="worldintel-grid" style={{ marginTop: '1rem' }}>
+        <article className="panel worldintel-card">
+          <h3>Country intelligence index</h3>
+          <div className="worldintel-table-wrap">
+            <table className="company-quote-table worldintel-table">
+              <thead>
+                <tr>
+                  <th>Country</th>
+                  <th>Score</th>
+                  <th>Tariff risk</th>
+                  <th>FX</th>
+                  <th>Lane</th>
+                </tr>
+              </thead>
+              <tbody>
+                {intelCountryRows.map((row) => (
+                  <tr key={row.country}>
+                    <td><strong>{row.country}</strong></td>
+                    <td>{row.score}/100</td>
+                    <td>{row.tariffRisk}</td>
+                    <td>{row.fx}</td>
+                    <td>{row.lane}</td>
+                  </tr>
+                ))}
+                {!worldIntelLoading && intelCountryRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      No country signals yet. Upload quotes with country-of-origin fields to activate this table.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
     </main>
   );
 }

@@ -714,8 +714,8 @@ function FXPage() {
           <div>
             <h2>Forward contracts cockpit (sample + your lab adds)</h2>
             <p className="muted fx-page__fineprint">
-              Hypothetical payables/forwards pegged to your procurement scenario (education only — not transactional).
-              Tune the adverse-move slider to visualize how tenor and residual FX gap affect mark-to-market.
+              Hypothetical payables/forwards pegged to your procurement scenario. Tune the adverse-move slider to
+              visualize how tenor and residual FX gap affect mark-to-market.
             </p>
           </div>
           <label className="fx-stress-field">

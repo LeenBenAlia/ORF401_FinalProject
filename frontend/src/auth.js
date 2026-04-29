@@ -5,25 +5,31 @@ import { matchStaticDemoLogin, usesStaticGithubPagesDemo } from "./githubPagesDe
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem("blaise_token") || "");
+  const [token, setToken] = useState(() => {
+    const legacy = localStorage.getItem("blaise_token");
+    if (legacy) localStorage.removeItem("blaise_token");
+    return sessionStorage.getItem("blaise_token") || "";
+  });
   const [company, setCompany] = useState(() => {
-    const raw = localStorage.getItem("blaise_company");
+    const legacy = localStorage.getItem("blaise_company");
+    if (legacy) localStorage.removeItem("blaise_company");
+    const raw = sessionStorage.getItem("blaise_company");
     return raw ? JSON.parse(raw) : null;
   });
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem("blaise_token", token);
+      sessionStorage.setItem("blaise_token", token);
     } else {
-      localStorage.removeItem("blaise_token");
+      sessionStorage.removeItem("blaise_token");
     }
   }, [token]);
 
   useEffect(() => {
     if (company) {
-      localStorage.setItem("blaise_company", JSON.stringify(company));
+      sessionStorage.setItem("blaise_company", JSON.stringify(company));
     } else {
-      localStorage.removeItem("blaise_company");
+      sessionStorage.removeItem("blaise_company");
     }
   }, [company]);
 
