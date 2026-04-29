@@ -19,7 +19,7 @@ function routeLabel(route) {
 
 function safeFileSlug(s) {
   return String(s || 'baseline')
-    .replace(/[^\w\-]+/g, '_')
+    .replace(/[^\w-]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 72) || 'baseline';

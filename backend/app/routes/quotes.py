@@ -31,6 +31,17 @@ NEXT_ID = 1
 GROUP_STORE: Dict[str, List[str]] = {}
 PRODUCT_CATALOG: Dict[str, List[str]] = {}
 
+COUNTRY_PROFILE = {
+    "taiwan": {"currency": "TWD", "lane": "Sea + Air", "risk": 78, "tariff": "High"},
+    "china": {"currency": "CNY", "lane": "Sea", "risk": 71, "tariff": "Elevated"},
+    "south korea": {"currency": "KRW", "lane": "Sea + Air", "risk": 69, "tariff": "Elevated"},
+    "japan": {"currency": "JPY", "lane": "Sea + Air", "risk": 57, "tariff": "Moderate"},
+    "germany": {"currency": "EUR", "lane": "Sea + Rail", "risk": 46, "tariff": "Moderate"},
+    "france": {"currency": "EUR", "lane": "Sea + Rail", "risk": 44, "tariff": "Moderate"},
+    "mexico": {"currency": "MXN", "lane": "Land", "risk": 41, "tariff": "Low"},
+    "poland": {"currency": "PLN", "lane": "Rail + Truck", "risk": 57, "tariff": "Moderate"},
+}
+
 
 def _persist_quote_state() -> None:
     persistence.save_quotes_bundle(QUOTE_STORE, NEXT_ID, GROUP_STORE, PRODUCT_CATALOG)
@@ -162,6 +173,106 @@ def _extract_from_text(text: str) -> Dict[str, Any]:
         "material": _get(r"Material:\s*([^\n]+)"),
         "tariff_rate": None,
         "exchange_rate": None,
+    }
+
+
+def _country_profile(country_name: str) -> Dict[str, Any]:
+    key = str(country_name or "").strip().lower()
+    if key in COUNTRY_PROFILE:
+        return COUNTRY_PROFILE[key]
+    return {"currency": "USD", "lane": "Sea", "risk": 50, "tariff": "Moderate"}
+
+
+def _build_world_intel_payload(company_quotes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    active_quotes = [q for q in company_quotes if not q.get("trashed")]
+    countries = []
+    for quote in active_quotes:
+        c = str(quote.get("extracted", {}).get("country") or "").strip()
+        if c and c.lower() != "unknown":
+            countries.append(c)
+    uniq_countries = sorted(set(countries), key=lambda x: x.lower())
+
+    country_rows = []
+    for c in uniq_countries:
+        p = _country_profile(c)
+        country_rows.append(
+            {
+                "country": c,
+                "score": p["risk"],
+                "tariffRisk": p["tariff"],
+                "fx": p["currency"],
+                "lane": p["lane"],
+            }
+        )
+
+    high_risk = [row for row in country_rows if row["score"] >= 70]
+    elevated = [row for row in country_rows if row["score"] >= 60]
+    lane_risk = [row for row in country_rows if "Sea" in row["lane"]]
+
+    escalation_feed = []
+    if lane_risk:
+        escalation_feed.append(
+            {
+                "id": "lane-sea",
+                "level": "Elevated",
+                "title": "Ocean lanes dominate current sourcing mix",
+                "summary": "Most active supplier origins currently map to sea-linked lanes; monitor route delays and insurance cost drift.",
+                "tags": ["Shipping", "Logistics"],
+                "region": "Global",
+            }
+        )
+    if high_risk:
+        names = ", ".join([r["country"] for r in high_risk[:3]])
+        escalation_feed.append(
+            {
+                "id": "country-risk",
+                "level": "Critical",
+                "title": "High-risk origins detected in active quotes",
+                "summary": f"Detected high-risk country exposure in {names}. Review tariff and FX hedging assumptions before award.",
+                "tags": ["Tariff", "FX"],
+                "region": "Procurement",
+            }
+        )
+    if not escalation_feed:
+        escalation_feed.append(
+            {
+                "id": "stable-mix",
+                "level": "Moderate",
+                "title": "Current supplier mix is relatively stable",
+                "summary": "No severe country concentration detected from active quotes. Continue baseline and lane monitoring.",
+                "tags": ["Monitoring"],
+                "region": "Procurement",
+            }
+        )
+
+    avg_risk = 0
+    if country_rows:
+        avg_risk = int(round(sum([r["score"] for r in country_rows]) / len(country_rows)))
+    kpis = [
+        {"label": "Active quotes", "value": str(len(active_quotes)), "delta": "Current company scope"},
+        {"label": "Origin countries", "value": str(len(country_rows)), "delta": "Detected from quote extraction"},
+        {"label": "Elevated-risk origins", "value": str(len(elevated)), "delta": "Score >= 60"},
+        {"label": "Composite risk", "value": f"{avg_risk}/100", "delta": "Country-weighted heuristic"},
+    ]
+
+    signal_layers = [
+        "Quote-origin concentration",
+        "Tariff sensitivity by country",
+        "FX currency exposure",
+        "Route-lane dependency",
+        "Supplier diversification",
+    ]
+    recommendations = [
+        "Open Tariff Risk for lane-level scenario checks on high-risk countries.",
+        "Open FX Risk and prioritize hedge planning for non-USD concentration.",
+        "Use Product Baseline to test substitute suppliers in lower-risk origins.",
+    ]
+    return {
+        "kpis": kpis,
+        "countryIntel": country_rows,
+        "escalationFeed": escalation_feed,
+        "signalLayers": signal_layers,
+        "recommendations": recommendations,
     }
 
 
@@ -332,6 +443,13 @@ async def get_quotes(authorization: str = Header(None)):
         if q.get("company_id") == company["id"] and not q.get("trashed")
     ]
     return {"quotes": quotes}
+
+
+@router.get("/world-intel")
+async def get_world_intel(authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_quotes = [q for q in QUOTE_STORE if q.get("company_id") == company["id"]]
+    return _build_world_intel_payload(company_quotes)
 
 
 @router.get("/quotes/trash")
