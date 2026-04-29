@@ -32,6 +32,9 @@ function Layout() {
             <NavLink to="/fx" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               FX risk
             </NavLink>
+            <NavLink to="/world-monitor" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              World monitor
+            </NavLink>
           </nav>
           <div className="header-actions">
             <a className="btn btn--ghost" href="https://github.com/LeenBenAlia/ORF401_FinalProject" rel="noreferrer" target="_blank">

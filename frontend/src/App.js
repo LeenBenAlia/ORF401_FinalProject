@@ -13,6 +13,7 @@ import DashboardPage from './pages/DashboardPage';
 import TariffPage from './pages/TariffPage';
 import FXPage from './pages/FXPage';
 import ProductBaselinePage from './pages/ProductBaselinePage';
+import WorldMonitorPage from './pages/WorldMonitorPage';
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
         {/* Public coursework FX panel — localhost /fx loads without redirect to /auth */}
         <Route path="fx" element={<FXPage />} />
         <Route path="compare" element={<Navigate to="/baseline" replace />} />
+        <Route path="world-monitor" element={<WorldMonitorPage />} />
         <Route
           path="baseline"
           element={(
