@@ -3666,6 +3666,24 @@ pre {
   font: inherit;
 }
 
+.dashboard-filter-grid {
+  margin: 0.75rem 0 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dashboard-filter-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font: inherit;
+  background: #fff;
+}
+
 .upload-product-bar {
   margin-top: 1rem;
 }

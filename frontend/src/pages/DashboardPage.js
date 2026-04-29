@@ -13,6 +13,13 @@ function DashboardPage() {
   const [catalogProducts, setCatalogProducts] = useState([]);
   const [newProductName, setNewProductName] = useState('');
   const [productSaving, setProductSaving] = useState(false);
+  const [filterId, setFilterId] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
+  const [filterFolder, setFilterFolder] = useState('');
+  const [filterMaterial, setFilterMaterial] = useState('');
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterParamKey, setFilterParamKey] = useState('');
+  const [filterParamValue, setFilterParamValue] = useState('');
 
   const loadProductCatalog = useCallback(async () => {
     try {
@@ -126,6 +133,84 @@ function DashboardPage() {
     return Array.from(byProduct.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [quotes, catalogProducts]);
 
+  const filterOptions = useMemo(() => {
+    const products = new Set();
+    const folders = new Set();
+    const materials = new Set();
+    const countries = new Set();
+    const paramKeys = new Set();
+    quotes.forEach((q) => {
+      products.add(quoteProductLabel(q));
+      folders.add(q.group_key || 'default');
+      const ex = q.extracted || {};
+      const sf = q.selected_fields || {};
+      const material = String(ex.material ?? sf.material ?? '').trim();
+      const country = String(ex.country ?? sf.country ?? sf.country_of_origin ?? '').trim();
+      if (material) materials.add(material);
+      if (country) countries.add(country);
+      Object.keys(ex || {}).forEach((k) => paramKeys.add(k));
+      Object.keys(sf || {}).forEach((k) => paramKeys.add(k));
+      paramKeys.add('id');
+      paramKeys.add('filename');
+      paramKeys.add('group_key');
+      paramKeys.add('product');
+    });
+    return {
+      products: Array.from(products).sort((a, b) => a.localeCompare(b)),
+      folders: Array.from(folders).sort((a, b) => a.localeCompare(b)),
+      materials: Array.from(materials).sort((a, b) => a.localeCompare(b)),
+      countries: Array.from(countries).sort((a, b) => a.localeCompare(b)),
+      paramKeys: Array.from(paramKeys).sort((a, b) => a.localeCompare(b)),
+    };
+  }, [quotes]);
+
+  const resolveParamValue = useCallback((q, key) => {
+    if (!key) return '';
+    const ex = q.extracted || {};
+    const sf = q.selected_fields || {};
+    if (key === 'id') return String(q.id ?? '');
+    if (key === 'filename') return String(q.filename ?? '');
+    if (key === 'group_key') return String(q.group_key || 'default');
+    if (key === 'product') return quoteProductLabel(q);
+    if (sf[key] != null) return String(sf[key]);
+    if (ex[key] != null) return String(ex[key]);
+    return '';
+  }, []);
+
+  const filteredQuotes = useMemo(() => {
+    const idTerm = filterId.trim().toLowerCase();
+    const paramTerm = filterParamValue.trim().toLowerCase();
+    return quotes.filter((q) => {
+      const product = quoteProductLabel(q);
+      const folder = q.group_key || 'default';
+      const ex = q.extracted || {};
+      const sf = q.selected_fields || {};
+      const material = String(ex.material ?? sf.material ?? '').trim();
+      const country = String(ex.country ?? sf.country ?? sf.country_of_origin ?? '').trim();
+
+      if (idTerm && !String(q.id).toLowerCase().includes(idTerm)) return false;
+      if (filterProduct && product !== filterProduct) return false;
+      if (filterFolder && folder !== filterFolder) return false;
+      if (filterMaterial && material !== filterMaterial) return false;
+      if (filterCountry && country !== filterCountry) return false;
+      if (filterParamKey && paramTerm) {
+        const v = resolveParamValue(q, filterParamKey).toLowerCase();
+        if (!v.includes(paramTerm)) return false;
+      }
+      return true;
+    });
+  }, [
+    quotes,
+    filterId,
+    filterProduct,
+    filterFolder,
+    filterMaterial,
+    filterCountry,
+    filterParamKey,
+    filterParamValue,
+    resolveParamValue,
+  ]);
+
   const displayCompany = company?.company_name || user?.company || 'Your company';
 
   return (
@@ -192,7 +277,75 @@ function DashboardPage() {
 
       <section className="panel card-soft" style={{ marginTop: '1rem' }}>
         <h2>All quotes (summary)</h2>
-        <p className="muted">Latest filenames from your library.</p>
+        <p className="muted">Latest filenames from your library. Use filters below to slice by key attributes or your own parameter.</p>
+        <div className="dashboard-filter-grid">
+          <input
+            type="text"
+            className="dashboard-filter-input"
+            placeholder="Filter by quote ID (e.g. 12)"
+            value={filterId}
+            onChange={(e) => setFilterId(e.target.value)}
+          />
+          <select className="dashboard-filter-input" value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)}>
+            <option value="">All product lines</option>
+            {filterOptions.products.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <select className="dashboard-filter-input" value={filterFolder} onChange={(e) => setFilterFolder(e.target.value)}>
+            <option value="">All folders</option>
+            {filterOptions.folders.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+          <select className="dashboard-filter-input" value={filterMaterial} onChange={(e) => setFilterMaterial(e.target.value)}>
+            <option value="">All materials</option>
+            {filterOptions.materials.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <select className="dashboard-filter-input" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}>
+            <option value="">All countries</option>
+            {filterOptions.countries.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            list="dashboard-param-key-suggest"
+            className="dashboard-filter-input"
+            placeholder="Custom parameter key (e.g. supplier, currency)"
+            value={filterParamKey}
+            onChange={(e) => setFilterParamKey(e.target.value)}
+          />
+          <datalist id="dashboard-param-key-suggest">
+            {filterOptions.paramKeys.map((k) => (
+              <option key={k} value={k} />
+            ))}
+          </datalist>
+          <input
+            type="text"
+            className="dashboard-filter-input"
+            placeholder="Custom parameter value"
+            value={filterParamValue}
+            onChange={(e) => setFilterParamValue(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => {
+              setFilterId('');
+              setFilterProduct('');
+              setFilterFolder('');
+              setFilterMaterial('');
+              setFilterCountry('');
+              setFilterParamKey('');
+              setFilterParamValue('');
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
         {quotes.length === 0 ? (
           <p className="muted">Nothing uploaded yet.</p>
         ) : (
@@ -210,7 +363,7 @@ function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {quotes
+                {filteredQuotes
                   .slice()
                   .sort((a, b) => b.id - a.id)
                   .slice(0, 12)
@@ -232,11 +385,16 @@ function DashboardPage() {
                       </td>
                     </tr>
                   ))}
+                {filteredQuotes.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted">No quotes match the active filters.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
-            {quotes.length > 12 && (
+            {filteredQuotes.length > 12 && (
               <p className="muted" style={{ marginTop: '0.5rem' }}>
-                Showing 12 of {quotes.length}. <Link to="/quotes">View full library</Link>
+                Showing 12 of {filteredQuotes.length} filtered quotes. <Link to="/quotes">View full library</Link>
               </p>
             )}
           </div>

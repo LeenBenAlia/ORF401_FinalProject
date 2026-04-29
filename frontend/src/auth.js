@@ -33,6 +33,15 @@ export function AuthProvider({ children }) {
     }
   }, [company]);
 
+  useEffect(() => {
+    const onInvalid = () => {
+      setToken("");
+      setCompany(null);
+    };
+    window.addEventListener("auth:invalid", onInvalid);
+    return () => window.removeEventListener("auth:invalid", onInvalid);
+  }, []);
+
   const login = async (email, password) => {
     const demo = matchStaticDemoLogin(email, password);
     if (demo) {

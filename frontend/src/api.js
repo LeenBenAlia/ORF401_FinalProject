@@ -7,8 +7,17 @@ const api = axios.create({
   timeout: 60000,
 });
 
+function getStoredAuthToken() {
+  if (typeof window === 'undefined') return '';
+  return (
+    sessionStorage.getItem('blaise_token') ||
+    localStorage.getItem('blaise_token') ||
+    ''
+  );
+}
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("blaise_token");
+  const token = getStoredAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -79,6 +88,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     sanitizeAxiosErrorPayload(error);
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      try {
+        sessionStorage.removeItem('blaise_token');
+        sessionStorage.removeItem('blaise_company');
+        localStorage.removeItem('blaise_token');
+        localStorage.removeItem('blaise_company');
+        window.dispatchEvent(new CustomEvent('auth:invalid'));
+      } catch {
+        /* ignore storage failures */
+      }
+    }
     return Promise.reject(error);
   }
 );
