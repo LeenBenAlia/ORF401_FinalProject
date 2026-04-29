@@ -1368,6 +1368,62 @@ main .results-card {
   font-weight: 600;
 }
 
+.upload-verbal-panel {
+  margin: 1.25rem 0 0.5rem;
+  padding: 1rem 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #d4e8e4;
+  background: linear-gradient(165deg, #f0fdf9 0%, #f8fbff 100%);
+}
+
+.upload-verbal-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.upload-verbal-panel__head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.upload-verbal-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.65rem 0 0.35rem;
+}
+
+.upload-verbal-panel__actions .btn-recording {
+  border-color: #b91c1c;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.upload-verbal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.65rem 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.upload-verbal-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--ink-muted, #4b5c76);
+}
+
+.upload-verbal-grid input {
+  font-size: 0.9rem;
+}
+
 .upload-dropzone {
   position: relative;
   border: 2px dashed #b8c9e6;

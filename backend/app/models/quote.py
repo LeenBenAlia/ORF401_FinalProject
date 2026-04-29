@@ -59,3 +59,17 @@ class ProductCreateRequest(BaseModel):
 class AssignProductRequest(BaseModel):
     quote_ids: List[int] = Field(default_factory=list)
     product_name: str = ""
+
+
+class VerbalQuoteSaveRequest(BaseModel):
+    """Save a quote digitized from a meeting transcript (and optional recording flow)."""
+
+    transcript: str
+    meeting_title: str = "Sales call"
+    group_key: str = "default"
+    manual_product: str = ""
+    manual_fields: List[str] = Field(default_factory=list)
+    use_liz_recommendations: bool = False
+    product_name: str = ""
+    product_description: str = ""
+    extracted: Dict[str, Any] = Field(default_factory=dict)

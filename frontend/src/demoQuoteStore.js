@@ -3,6 +3,8 @@
  * so the quote library and dashboard stay in sync until the tab closes.
  */
 
+import { buildVerbalDemoSelectedFields } from './utils/verbalQuoteExtract';
+
 const QUOTES_KEY = 'blaise_demo_quotes_v1';
 const EXTRA_GROUPS_KEY = 'blaise_demo_extra_groups_v1';
 const PRODUCTS_KEY = 'blaise_demo_products_v1';
@@ -154,6 +156,68 @@ export function restoreDemoQuote(companyId, quoteId) {
  * @param {File[]} files
  * @param {{ companyId: string, groupKey: string, productName: string, manualProductLine?: string }} opts
  */
+/**
+ * One demo quote row from a meeting transcript (GitHub Pages).
+ * @param {object} opts
+ * @param {string} opts.companyId
+ * @param {string} opts.groupKey
+ * @param {string} [opts.manualProductLine]
+ * @param {string} opts.meetingTitle
+ * @param {string} opts.transcript
+ * @param {Record<string, unknown>} opts.extracted
+ * @param {boolean} opts.useLiz
+ * @param {string[]} opts.manualFieldsList
+ * @param {string} opts.productName
+ * @param {string} opts.productDescription
+ */
+export function buildDemoVerbalQuoteRecord(opts) {
+  const {
+    companyId,
+    groupKey,
+    manualProductLine,
+    meetingTitle,
+    transcript,
+    extracted,
+    useLiz,
+    manualFieldsList,
+    productName,
+    productDescription,
+  } = opts;
+  const id = nextDemoQuoteId();
+  const slug = String(meetingTitle || 'sales-call')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80) || 'meeting';
+  const fname = `${slug}-${id}.meeting.txt`;
+  const mp = typeof manualProductLine === 'string' ? manualProductLine.trim() : '';
+  const selected_fields = buildVerbalDemoSelectedFields(
+    extracted,
+    manualFieldsList || [],
+    useLiz,
+    productName || '',
+    productDescription || ''
+  );
+  const rec = {
+    id,
+    company_id: companyId,
+    filename: fname,
+    group_key: groupKey,
+    trashed: false,
+    source_type: '.meeting.txt',
+    extracted: { ...extracted },
+    selected_fields,
+    meeting_transcript: String(transcript || '').slice(0, 50000),
+    meeting_title: String(meetingTitle || 'Sales call').slice(0, 200),
+  };
+  if (mp) {
+    rec.manual_product = mp;
+    addDemoProduct(companyId, mp);
+  }
+  return rec;
+}
+
 export function buildDemoQuoteRecordsFromFiles(files, { companyId, groupKey, productName, manualProductLine }) {
   let id = nextDemoQuoteId();
   return files.map((file) => {

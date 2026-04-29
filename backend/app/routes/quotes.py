@@ -1,12 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Header
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 import uuid
 import json
 import re
 from email import policy
 from email.parser import BytesParser
+import time
 import pandas as pd
+import requests
 from ..utils.pdf_processor import extract_quote_data
 from ..models.quote import (
     Quote,
@@ -16,6 +18,7 @@ from ..models.quote import (
     QuoteIdsRequest,
     ProductCreateRequest,
     AssignProductRequest,
+    VerbalQuoteSaveRequest,
 )
 from .auth import get_company_from_auth_header
 from .. import persistence
@@ -174,6 +177,180 @@ def _extract_from_text(text: str) -> Dict[str, Any]:
         "tariff_rate": None,
         "exchange_rate": None,
     }
+
+
+_VERBAL_COUNTRY_NAMES = (
+    "Germany",
+    "France",
+    "Japan",
+    "China",
+    "Mexico",
+    "United States",
+    "USA",
+    "Taiwan",
+    "South Korea",
+    "Canada",
+    "United Kingdom",
+    "UK",
+    "Poland",
+    "India",
+    "Vietnam",
+)
+
+
+def extract_verbal_transcript(text: str) -> Dict[str, Any]:
+    """Heuristic extraction from spoken or pasted meeting notes (no LLM)."""
+    t = (text or "").strip()
+    if not t:
+        return {
+            "supplier": "Unknown",
+            "product": "Unknown",
+            "price": 0.0,
+            "currency": "USD",
+            "country": "Unknown",
+            "material": "Unknown",
+            "tariff_rate": None,
+            "exchange_rate": None,
+        }
+
+    if re.search(r"(?i)Supplier:\s*", t) and re.search(r"(?i)Price:\s*", t):
+        return _extract_from_text(t)
+
+    price = 0.0
+    for pat in (
+        r"(?i)(?:price|quote|cost|total|unit\s*price)\s*(?:is|of|about|around|at)?\s*[\$€£]?\s*([0-9][0-9,]*\.?[0-9]*)",
+        r"(?i)(?:\$|€|£)\s*([0-9][0-9,]*\.?[0-9]*)",
+        r"(?i)\b([0-9][0-9,]*\.?[0-9]*)\s*(?:dollars?|usd|euros?|eur|pounds?|gbp|yuan|cny)\b",
+    ):
+        m = re.search(pat, t)
+        if m:
+            try:
+                price = float(m.group(1).replace(",", ""))
+                if price > 0:
+                    break
+            except ValueError:
+                pass
+
+    currency = "USD"
+    mc = re.search(r"\b(USD|EUR|GBP|CNY|JPY|MXN|KRW|TWD|PLN|INR|VND)\b", t, re.I)
+    if mc:
+        currency = mc.group(1).upper()
+    elif re.search(r"(?i)\beuros?\b", t):
+        currency = "EUR"
+    elif re.search(r"(?i)\bdollars?\b|\busd\b", t):
+        currency = "USD"
+    elif re.search(r"(?i)\bpounds?\b|\bgbp\b", t):
+        currency = "GBP"
+
+    country = "Unknown"
+    for c in _VERBAL_COUNTRY_NAMES:
+        if re.search(rf"\b{re.escape(c)}\b", t, re.I):
+            if c.upper() in {"USA", "UNITED STATES"}:
+                country = "United States"
+            elif c.upper() == "UK":
+                country = "United Kingdom"
+            else:
+                country = c
+            break
+
+    supplier = "Unknown"
+    m = re.search(
+        r"(?i)(?:supplier|vendor|company|they(?:'re| are)?)\s*(?:is|called|named|from|:)?\s*([A-Za-z0-9][A-Za-z0-9 &\-'.]{2,79})",
+        t,
+    )
+    if m:
+        supplier = m.group(1).strip().rstrip(".,;")
+
+    product = "Unknown"
+    m = re.search(
+        r"(?i)(?:product|part|sku|item|widget|assembly)\s*(?:is|called|named|number|:)?\s*([^\n.,;]{3,120})",
+        t,
+    )
+    if m:
+        product = m.group(1).strip()
+
+    material = "Unknown"
+    m = re.search(
+        r"(?i)(?:material|alloy|steel|grade|resin)\s*(?:is|:)?\s*([^\n.,;]{2,80})",
+        t,
+    )
+    if m:
+        material = m.group(1).strip()
+
+    return {
+        "supplier": supplier[:200],
+        "product": product[:200],
+        "price": price,
+        "currency": currency,
+        "country": country[:120],
+        "material": material[:200],
+        "tariff_rate": None,
+        "exchange_rate": None,
+    }
+
+
+def _slug_meeting_title(title: str) -> str:
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", (title or "").strip().lower()).strip("-")
+    return (s[:80] if s else "meeting")
+
+
+def _transcribe_openai_whisper(audio_bytes: bytes, filename: str) -> str:
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=400,
+            detail="Audio transcription requires OPENAI_API_KEY on the server, or paste a transcript instead.",
+        )
+    safe_name = os.path.basename(filename) or "recording.webm"
+    files = {"file": (safe_name, audio_bytes, "application/octet-stream")}
+    data = {"model": "whisper-1"}
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {key}"},
+            files=files,
+            data=data,
+            timeout=120,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Transcription service unreachable: {exc}") from exc
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Transcription failed ({resp.status_code}): {resp.text[:800]}",
+        )
+    try:
+        payload = resp.json()
+    except ValueError:
+        raise HTTPException(status_code=502, detail="Transcription returned invalid JSON") from None
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Transcription returned empty text.")
+    return text
+
+
+def _merge_verbal_extracted(transcript: str, user_extracted: Dict[str, Any]) -> Dict[str, Any]:
+    base = extract_verbal_transcript(transcript)
+    if not user_extracted:
+        return base
+    keys = ("supplier", "product", "price", "currency", "country", "material", "tariff_rate", "exchange_rate")
+    out = dict(base)
+    for k in keys:
+        if k not in user_extracted:
+            continue
+        v = user_extracted.get(k)
+        if v is None:
+            continue
+        if k == "price":
+            try:
+                out[k] = float(v)
+            except (TypeError, ValueError):
+                pass
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        out[k] = v
+    return out
 
 
 def _country_profile(country_name: str) -> Dict[str, Any]:
@@ -347,6 +524,102 @@ async def recommend_fields(payload: LizFieldRecommendationRequest):
         "recommended_fields": recommended_fields,
         "missing_fields": missing_fields,
     }
+
+
+@router.post("/quotes/meeting-transcribe")
+async def meeting_transcribe(
+    authorization: str = Header(None),
+    transcript: str = Form(""),
+    audio: Optional[UploadFile] = File(None),
+):
+    """Transcribe optional audio (OpenAI Whisper when OPENAI_API_KEY is set) and extract quote fields from text."""
+    _ = get_company_from_auth_header(authorization)
+    parts: List[str] = []
+    transcription_source = "pasted"
+
+    if audio and audio.filename:
+        content = await audio.read()
+        max_upload_size = 25 * 1024 * 1024
+        if len(content) > max_upload_size:
+            raise HTTPException(status_code=413, detail="Audio file too large. Max size is 25MB.")
+        whisper_text = _transcribe_openai_whisper(content, audio.filename)
+        parts.append(whisper_text)
+        transcription_source = "whisper"
+
+    pasted = (transcript or "").strip()
+    if pasted:
+        parts.append(pasted)
+
+    combined = "\n\n".join(parts).strip()
+    if not combined:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide a pasted transcript and/or an audio recording to digitize.",
+        )
+
+    extracted = extract_verbal_transcript(combined)
+    return {
+        "transcript": combined,
+        "extracted": extracted,
+        "transcription_source": transcription_source,
+    }
+
+
+@router.post("/quotes/meeting-save")
+async def meeting_save(payload: VerbalQuoteSaveRequest, authorization: str = Header(None)):
+    """Persist a quote created from a sales call / meeting transcript."""
+    global NEXT_ID
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    text = (payload.transcript or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Transcript is required to save a verbal quote.")
+
+    merged = _merge_verbal_extracted(text, payload.extracted or {})
+    try:
+        quote = Quote(**merged)
+        _ = quote
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid extracted fields: {exc}") from exc
+
+    parsed_manual_fields = list(payload.manual_fields or [])
+    selected_fields = build_selected_fields(
+        merged,
+        parsed_manual_fields,
+        payload.use_liz_recommendations,
+        payload.product_name,
+        payload.product_description,
+    )
+    slug = _slug_meeting_title(payload.meeting_title)
+    fname = f"{slug}-{int(time.time())}.meeting.txt"
+
+    record: Dict[str, Any] = {
+        "id": NEXT_ID,
+        "company_id": company_id,
+        "filename": fname,
+        "group_key": payload.group_key or "default",
+        "trashed": False,
+        "source_type": ".meeting.txt",
+        "extracted": merged,
+        "selected_fields": selected_fields,
+        "meeting_transcript": text[:50000],
+        "meeting_title": (payload.meeting_title or "Sales call").strip()[:200],
+    }
+    mp_line = (payload.manual_product or "").strip()
+    if mp_line:
+        record["manual_product"] = mp_line
+        _add_product_name(company_id, mp_line)
+    if company_id not in GROUP_STORE:
+        GROUP_STORE[company_id] = ["default"]
+    gk = payload.group_key or "default"
+    if gk and gk not in GROUP_STORE[company_id]:
+        GROUP_STORE[company_id].append(gk)
+    QUOTE_STORE.append(record)
+    NEXT_ID += 1
+    _persist_quote_state()
+
+    return {"message": "Verbal quote saved", "data": record}
+
 
 @router.post("/upload")
 async def upload_quote(

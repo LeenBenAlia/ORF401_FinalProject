@@ -10,6 +10,7 @@ import {
   getDemoProducts,
   addDemoProduct,
 } from '../demoQuoteStore';
+import VerbalMeetingSection from './VerbalMeetingSection';
 
 function mergeQuoteFiles(prev, added) {
   const map = new Map();
@@ -305,7 +306,7 @@ function UploadQuote() {
       </p>
       {usesStaticGithubPagesDemo() && (
         <p className="quote-library-api-note" role="note">
-          <strong>GitHub Pages preview:</strong> uploads are simulated in your browser (no PDF parsing on a server). Use a demo login, then upload to see quotes on the library and dashboard. For real extraction, run the FastAPI app locally or set the{' '}
+          <strong>GitHub Pages preview:</strong> uploads are simulated in your browser (no PDF parsing on a server). Verbal quotes use the same in-browser parser from your transcript only (no Whisper). Use a demo login, then upload or digitize a call to see quotes on the library and dashboard. For real extraction, run the FastAPI app locally or set the{' '}
           <code className="quote-library-code">REACT_APP_API_BASE_URL</code> secret and redeploy.
         </p>
       )}
@@ -470,6 +471,18 @@ function UploadQuote() {
           </button>
         </div>
       </div>
+
+      <VerbalMeetingSection
+        company={company}
+        groupKey={groupKey}
+        manualProductLine={manualProductLine}
+        productName={productName}
+        productDescription={productDescription}
+        useLiz={useLiz}
+        getManualFieldsList={parseManualFields}
+        loadGroups={loadGroups}
+        setMessage={setMessage}
+      />
 
       <div
         className={`upload-dropzone${dragOver ? ' upload-dropzone--active' : ''}`}
