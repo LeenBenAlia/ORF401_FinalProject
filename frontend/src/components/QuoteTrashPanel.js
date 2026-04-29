@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api, { formatApiError } from '../api';
+import { useAuth } from '../auth';
 import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
+import { loadTrashedDemoQuotes, restoreDemoQuote } from '../demoQuoteStore';
 
 function QuoteTrashPanel() {
+  const { company } = useAuth();
   const [trashed, setTrashed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,7 +16,11 @@ function QuoteTrashPanel() {
       setLoading(true);
       setError('');
       if (usesStaticGithubPagesDemo()) {
-        setTrashed([]);
+        if (!company?.id) {
+          setTrashed([]);
+          return;
+        }
+        setTrashed(loadTrashedDemoQuotes(company.id));
         return;
       }
       const res = await api.get('/quotes/trash');
@@ -24,7 +31,7 @@ function QuoteTrashPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [company?.id]);
 
   useEffect(() => {
     load();
@@ -40,6 +47,13 @@ function QuoteTrashPanel() {
     try {
       setBusyId(quoteId);
       setError('');
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) return;
+        restoreDemoQuote(company.id, quoteId);
+        await load();
+        window.dispatchEvent(new CustomEvent('quotes:changed'));
+        return;
+      }
       await api.post('/quotes/restore', { quote_ids: [quoteId] });
       await load();
       window.dispatchEvent(new CustomEvent('quotes:changed'));
@@ -65,7 +79,7 @@ function QuoteTrashPanel() {
       </header>
       {usesStaticGithubPagesDemo() && (
         <p className="quote-library-api-note" role="note">
-          <strong>Preview:</strong> Trash sync uses the API — unavailable on static GitHub Pages without a hosted backend.
+          <strong>Preview:</strong> trash and restore apply to demo quotes in this browser session only.
         </p>
       )}
       {error && <p className="error-text">{error}</p>}

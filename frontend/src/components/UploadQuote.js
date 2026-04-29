@@ -1,5 +1,15 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import api, { formatApiError } from '../api';
+import { useAuth } from '../auth';
+import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
+import {
+  appendDemoQuotes,
+  buildDemoQuoteRecordsFromFiles,
+  getDemoGroupNames,
+  addDemoExtraGroup,
+  getDemoProducts,
+  addDemoProduct,
+} from '../demoQuoteStore';
 
 function mergeQuoteFiles(prev, added) {
   const map = new Map();
@@ -13,6 +23,7 @@ function mergeQuoteFiles(prev, added) {
 }
 
 function UploadQuote() {
+  const { company } = useAuth();
   const [files, setFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
@@ -33,9 +44,40 @@ function UploadQuote() {
   const [outputMode, setOutputMode] = useState('excel');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [folderTileDrag, setFolderTileDrag] = useState(null);
+  const [manualProductLine, setManualProductLine] = useState('');
+  const [productCatalog, setProductCatalog] = useState([]);
+  const [productTileDrag, setProductTileDrag] = useState(null);
+  const [newProductLineName, setNewProductLineName] = useState('');
+
+  const loadProductCatalog = useCallback(async () => {
+    try {
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) {
+          setProductCatalog([]);
+          return;
+        }
+        setProductCatalog(getDemoProducts(company.id));
+        return;
+      }
+      const res = await api.get('/products');
+      setProductCatalog(res.data.products || []);
+    } catch {
+      setProductCatalog([]);
+    }
+  }, [company?.id]);
 
   const loadGroups = useCallback(async () => {
     try {
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) {
+          setGroups(['default']);
+          return;
+        }
+        const list = getDemoGroupNames(company.id);
+        setGroups(list.length ? list : ['default']);
+        setGroupKey((prev) => (list.includes(prev) ? prev : list[0]));
+        return;
+      }
       const res = await api.get('/groups');
       const list = res.data.groups?.length ? res.data.groups : ['default'];
       setGroups(list);
@@ -43,11 +85,52 @@ function UploadQuote() {
     } catch {
       setGroups(['default']);
     }
-  }, []);
+  }, [company?.id]);
 
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  useEffect(() => {
+    loadProductCatalog();
+  }, [loadProductCatalog]);
+
+  useEffect(() => {
+    const onProductsChanged = () => loadProductCatalog();
+    window.addEventListener('products:changed', onProductsChanged);
+    return () => window.removeEventListener('products:changed', onProductsChanged);
+  }, [loadProductCatalog]);
+
+  const createProductLine = async () => {
+    const name = newProductLineName.trim();
+    if (!name) {
+      setMessage('Enter a product line name to add.');
+      return;
+    }
+    try {
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) {
+          setMessage('Sign in with a demo account first.');
+          return;
+        }
+        addDemoProduct(company.id, name);
+        setNewProductLineName('');
+        await loadProductCatalog();
+        setManualProductLine(name);
+        setMessage(`Product line “${name}” added — uploads will tag this line until you pick another.`);
+        window.dispatchEvent(new CustomEvent('products:changed'));
+        return;
+      }
+      await api.post('/products', { name });
+      setNewProductLineName('');
+      await loadProductCatalog();
+      setManualProductLine(name);
+      setMessage(`Product line “${name}” added — uploads will tag this line until you pick another.`);
+      window.dispatchEvent(new CustomEvent('products:changed'));
+    } catch (error) {
+      setMessage(formatApiError(error));
+    }
+  };
 
   const createFolder = async () => {
     const name = newFolderName.trim();
@@ -56,6 +139,19 @@ function UploadQuote() {
       return;
     }
     try {
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) {
+          setMessage('Sign in with a demo account first.');
+          return;
+        }
+        addDemoExtraGroup(company.id, name);
+        setNewFolderName('');
+        await loadGroups();
+        setGroupKey(name);
+        setMessage(`Folder “${name}” created (preview). New uploads will save there.`);
+        window.dispatchEvent(new CustomEvent('quotes:changed'));
+        return;
+      }
       await api.post('/groups', { name });
       setNewFolderName('');
       await loadGroups();
@@ -121,6 +217,31 @@ function UploadQuote() {
       setMessage('Please choose at least one quote file first.');
       return;
     }
+    if (usesStaticGithubPagesDemo()) {
+      if (!company?.id) {
+        setMessage('Sign in with a demo account (Tesla / SpaceX / Nvidia on the login page) before uploading.');
+        return;
+      }
+      setUploading(true);
+      try {
+        const rows = buildDemoQuoteRecordsFromFiles(files, {
+          companyId: company.id,
+          groupKey,
+          productName,
+          manualProductLine,
+        });
+        appendDemoQuotes(rows);
+        setMessage(
+          `Preview: digitized ${rows.length} file(s) in your browser (GitHub Pages has no server). Data resets when you close the tab. Saved to folder “${groupKey}”.`
+        );
+        setData(rows);
+        await loadGroups();
+        window.dispatchEvent(new CustomEvent('quotes:changed'));
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
 
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
@@ -130,6 +251,7 @@ function UploadQuote() {
     formData.append('product_description', productDescription);
     formData.append('group_key', groupKey);
     formData.append('output_mode', outputMode);
+    formData.append('manual_product', manualProductLine.trim());
 
     try {
       setUploading(true);
@@ -181,6 +303,12 @@ function UploadQuote() {
         Multi-select in the file dialog (Shift- or Cmd/Ctrl-click), drop files
         here, or use <strong>Choose quote files</strong> again to append more.
       </p>
+      {usesStaticGithubPagesDemo() && (
+        <p className="quote-library-api-note" role="note">
+          <strong>GitHub Pages preview:</strong> uploads are simulated in your browser (no PDF parsing on a server). Use a demo login, then upload to see quotes on the library and dashboard. For real extraction, run the FastAPI app locally or set the{' '}
+          <code className="quote-library-code">REACT_APP_API_BASE_URL</code> secret and redeploy.
+        </p>
+      )}
 
       <div className="upload-folder-bar">
         <div className="upload-folder-bar__head">
@@ -246,6 +374,99 @@ function UploadQuote() {
           />
           <button type="button" className="btn-minimal" onClick={createFolder}>
             Create folder
+          </button>
+        </div>
+      </div>
+
+      <div className="upload-folder-bar upload-product-bar">
+        <div className="upload-folder-bar__head">
+          <span className="upload-folder-bar__title">Product line (optional)</span>
+          <p className="muted upload-folder-bar__lede">
+            Tag uploads so the dashboard groups quotes under your product names. Add lines on the dashboard or here; drop files onto a
+            tile to queue them under that product and folder.
+          </p>
+        </div>
+        <div className="upload-folder-tiles" role="group" aria-label="Choose product line for uploads">
+          <button
+            type="button"
+            className={`upload-folder-tile upload-folder-tile--product${manualProductLine === '' ? ' upload-folder-tile--active' : ''}${productTileDrag === '__none__' ? ' upload-folder-tile--dropping' : ''}`}
+            onClick={() => setManualProductLine('')}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setProductTileDrag('__none__');
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                setProductTileDrag((cur) => (cur === '__none__' ? null : cur));
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setProductTileDrag(null);
+              setManualProductLine('');
+              if (e.dataTransfer?.files?.length) {
+                addFilesFromList(e.dataTransfer.files);
+                setMessage('Files added — product line follows extraction text.');
+              }
+            }}
+          >
+            <span className="upload-folder-tile__name">From extraction</span>
+            {manualProductLine === '' && <span className="upload-folder-tile__badge">selected</span>}
+          </button>
+          {productCatalog.map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={`upload-folder-tile upload-folder-tile--product${manualProductLine === p ? ' upload-folder-tile--active' : ''}${productTileDrag === p ? ' upload-folder-tile--dropping' : ''}`}
+              onClick={() => setManualProductLine(p)}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setProductTileDrag(p);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setProductTileDrag((cur) => (cur === p ? null : cur));
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setProductTileDrag(null);
+                setManualProductLine(p);
+                if (e.dataTransfer?.files?.length) {
+                  addFilesFromList(e.dataTransfer.files);
+                  setMessage(`Files added — tagged to product line “${p}”.`);
+                }
+              }}
+            >
+              <span className="upload-folder-tile__name">{p}</span>
+              {manualProductLine === p && <span className="upload-folder-tile__badge">selected</span>}
+            </button>
+          ))}
+        </div>
+        <div className="upload-row upload-folder-bar__row">
+          <input
+            type="text"
+            value={newProductLineName}
+            onChange={(e) => setNewProductLineName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                createProductLine();
+              }
+            }}
+            placeholder="New product line name"
+            aria-label="New product line name"
+          />
+          <button type="button" className="btn-minimal" onClick={createProductLine}>
+            Add product line
           </button>
         </div>
       </div>

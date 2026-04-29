@@ -50,3 +50,12 @@ class AssignGroupRequest(BaseModel):
 
 class QuoteIdsRequest(BaseModel):
     quote_ids: List[int] = Field(default_factory=list)
+
+
+class ProductCreateRequest(BaseModel):
+    name: str
+
+
+class AssignProductRequest(BaseModel):
+    quote_ids: List[int] = Field(default_factory=list)
+    product_name: str = ""

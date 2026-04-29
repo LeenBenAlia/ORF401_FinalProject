@@ -14,6 +14,8 @@ from ..models.quote import (
     GroupCreateRequest,
     AssignGroupRequest,
     QuoteIdsRequest,
+    ProductCreateRequest,
+    AssignProductRequest,
 )
 from .auth import get_company_from_auth_header
 from .. import persistence
@@ -27,20 +29,37 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 QUOTE_STORE: List[Dict[str, Any]] = []
 NEXT_ID = 1
 GROUP_STORE: Dict[str, List[str]] = {}
+PRODUCT_CATALOG: Dict[str, List[str]] = {}
+
 
 def _persist_quote_state() -> None:
-    persistence.save_quotes_bundle(QUOTE_STORE, NEXT_ID, GROUP_STORE)
+    persistence.save_quotes_bundle(QUOTE_STORE, NEXT_ID, GROUP_STORE, PRODUCT_CATALOG)
 
 
 def hydrate_quote_store() -> None:
     """Load quotes + folders from disk (call after auth/companies hydrate on API startup)."""
     global NEXT_ID
-    ql, nid, gs = persistence.load_quotes_bundle()
+    ql, nid, gs, pc = persistence.load_quotes_bundle()
     QUOTE_STORE.clear()
     QUOTE_STORE.extend(ql)
     GROUP_STORE.clear()
     GROUP_STORE.update(gs)
+    PRODUCT_CATALOG.clear()
+    PRODUCT_CATALOG.update(pc)
     NEXT_ID = nid
+
+
+def _ensure_company_catalog(company_id: str) -> List[str]:
+    if company_id not in PRODUCT_CATALOG:
+        PRODUCT_CATALOG[company_id] = []
+    return PRODUCT_CATALOG[company_id]
+
+
+def _add_product_name(company_id: str, name: str) -> None:
+    lst = _ensure_company_catalog(company_id)
+    if name not in lst:
+        lst.append(name)
+        lst.sort(key=lambda s: s.lower())
 
 
 BASELINE_FIELDS = [
@@ -225,6 +244,7 @@ async def upload_quote(
     use_liz_recommendations: bool = Form(False),
     product_name: str = Form(""),
     product_description: str = Form(""),
+    manual_product: str = Form(""),
     group_key: str = Form("default"),
     output_mode: str = Form("excel"),
     authorization: str = Header(None),
@@ -276,6 +296,10 @@ async def upload_quote(
                 "extracted": extracted,
                 "selected_fields": selected_fields,
             }
+            mp_line = (manual_product or "").strip()
+            if mp_line:
+                record["manual_product"] = mp_line
+                _add_product_name(company_id, mp_line)
             if company_id not in GROUP_STORE:
                 GROUP_STORE[company_id] = ["default"]
             if group_key and group_key not in GROUP_STORE[company_id]:
@@ -402,6 +426,45 @@ async def create_group(payload: GroupCreateRequest, authorization: str = Header(
         GROUP_STORE[company_id].append(group_name)
     _persist_quote_state()
     return {"groups": GROUP_STORE[company_id]}
+
+
+@router.get("/products")
+async def list_products(authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    return {"products": _ensure_company_catalog(company["id"])}
+
+
+@router.post("/products")
+async def create_product(payload: ProductCreateRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Product name is required")
+    _add_product_name(company_id, name)
+    _persist_quote_state()
+    return {"products": _ensure_company_catalog(company_id)}
+
+
+@router.post("/quotes/assign-product")
+async def assign_quotes_to_product(payload: AssignProductRequest, authorization: str = Header(None)):
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    product_name = payload.product_name.strip()
+    updated = 0
+    for quote in QUOTE_STORE:
+        if quote["id"] not in payload.quote_ids or quote.get("company_id") != company_id:
+            continue
+        if quote.get("trashed"):
+            continue
+        if product_name:
+            quote["manual_product"] = product_name
+            _add_product_name(company_id, product_name)
+        else:
+            quote.pop("manual_product", None)
+        updated += 1
+    _persist_quote_state()
+    return {"updated_count": updated, "product": product_name or None}
 
 
 @router.post("/quotes/assign-group")

@@ -1,8 +1,9 @@
 /**
  * GitHub Pages serves static files only — there is no FastAPI backend on github.io.
  * When REACT_APP_API_BASE_URL is not set at build time, we allow the three seeded
- * demo logins locally so coursework demos still work (dashboard/quotes stay empty
- * until you host the API and rebuild with that URL).
+ * demo logins and browser-only demo quotes (see demoQuoteStore.js).
+ * CI sets REACT_APP_STATIC_HOSTING=true so project Pages builds behave correctly
+ * even when hostname checks differ; if you set REACT_APP_API_BASE_URL, the real API is used instead.
  */
 
 const DEMO_ROWS = [
@@ -11,9 +12,15 @@ const DEMO_ROWS = [
   { email: 'nvidia@blaise.ai', password: 'AdaGPU#1', company_name: 'Nvidia', id: 'demo-nvidia' },
 ];
 
+/**
+ * True when the app was built for static hosting without a real API base URL.
+ * Uses hostname and/or REACT_APP_STATIC_HOSTING (set by deploy-github-pages.yml)
+ * so project Pages and custom domains behave like the github.io case.
+ */
 export function usesStaticGithubPagesDemo() {
   if (typeof window === 'undefined') return false;
   if (process.env.REACT_APP_API_BASE_URL?.trim()) return false;
+  if (process.env.REACT_APP_STATIC_HOSTING === 'true') return true;
   return /\.github\.io$/i.test(window.location.hostname || '');
 }
 

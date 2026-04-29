@@ -2835,7 +2835,71 @@ pre {
 }
 
 .baseline-comparator-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem 1.25rem;
   margin-bottom: 1rem;
+}
+
+.baseline-comparator-head__text {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.baseline-export-global-hint {
+  margin-top: 0.5rem !important;
+  font-size: 0.8rem !important;
+}
+
+.baseline-export-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.baseline-export-toolbar__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-right: 0.15rem;
+}
+
+.baseline-export-toolbar--onDark .btn.btn--outline {
+  border-color: rgba(148, 163, 184, 0.55);
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.baseline-export-toolbar--onDark .btn.btn--outline:hover {
+  border-color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.75);
+  color: #f8fafc;
+}
+
+.baseline-export-card {
+  margin: 1rem 0 0.25rem;
+  padding: 0.75rem 1rem;
+}
+
+.baseline-export-card__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.baseline-export-card__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  max-width: 42rem;
+  line-height: 1.45;
 }
 
 .baseline-comparator-sub {
@@ -3286,6 +3350,10 @@ pre {
   gap: 0.45rem;
 }
 
+.panel.quote-library {
+  min-width: 0;
+}
+
 .quote-library .library-groups {
   margin-top: 1rem;
   display: grid;
@@ -3323,12 +3391,17 @@ pre {
   gap: 0.65rem;
   margin-top: 1rem;
   overflow-x: auto;
+  max-width: 100%;
   padding-bottom: 0.35rem;
   align-items: stretch;
+  min-width: 0;
 }
 
 .library-folder-column {
   flex: 0 0 min(240px, 88vw);
+  width: min(240px, 88vw);
+  max-width: min(240px, 88vw);
+  min-width: 0;
   min-height: 10rem;
   border: 2px dashed #cbd5e1;
   border-radius: 12px;
@@ -3336,6 +3409,7 @@ pre {
   background: #f8fafc;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
@@ -3381,6 +3455,13 @@ pre {
   gap: 0.35rem;
   flex: 1;
   min-height: 4rem;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.library-folder-column__list > li {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .library-folder-column__empty {
@@ -3393,15 +3474,29 @@ pre {
 
 .library-quote-chip {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.35rem;
-  padding: 0.35rem 0.45rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #fff;
   cursor: grab;
   font-size: 0.82rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.library-quote-chip__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  column-gap: 0.55rem;
+  row-gap: 0.35rem;
+  min-width: 0;
 }
 
 .library-quote-chip:active {
@@ -3414,35 +3509,45 @@ pre {
 
 .library-quote-chip__label {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.4rem;
-  flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   cursor: grab;
 }
 
+.library-quote-chip__label input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
 .library-quote-chip__text {
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .library-quote-chip__hint {
+  flex-shrink: 0;
   color: #94a3b8;
   font-size: 0.7rem;
   user-select: none;
+  line-height: 1;
 }
 
 .library-quote-chip__tariff {
+  justify-self: end;
   font-size: 0.62rem;
-  padding: 0.15rem 0.42rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 6px;
   border: 1px solid rgba(129, 140, 248, 0.6);
   background: rgba(238, 242, 255, 0.95);
   color: #4338ca;
   font-weight: 600;
   text-decoration: none;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .library-quote-chip__tariff:hover {
@@ -3451,8 +3556,9 @@ pre {
 }
 
 .library-quote-chip__trash {
+  justify-self: end;
   font-size: 0.62rem;
-  padding: 0.15rem 0.42rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 6px;
   border: 1px solid rgba(248, 113, 113, 0.5);
   background: rgba(254, 242, 242, 0.95);
@@ -3460,12 +3566,42 @@ pre {
   cursor: pointer;
   font: inherit;
   font-weight: 600;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .library-quote-chip__trash:hover {
   border-color: #ef4444;
   background: #fee2e2;
+}
+
+.library-quote-chip__product-row {
+  width: 100%;
+  min-width: 0;
+}
+
+.library-quote-chip__product-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.library-quote-chip__product-caption {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.library-quote-chip__product-select {
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .dashboard-actions-col {
@@ -3511,6 +3647,37 @@ pre {
 
 .quote-trash-panel h2 {
   margin: 0 0 0.35rem;
+}
+
+.dashboard-add-product {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.dashboard-add-product__input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font: inherit;
+}
+
+.upload-product-bar {
+  margin-top: 1rem;
+}
+
+.upload-folder-tile--product.upload-folder-tile--active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+
+.upload-folder-tile--product.upload-folder-tile--active .upload-folder-tile__badge {
+  color: #4338ca;
 }
 
 .dashboard-product-grid {

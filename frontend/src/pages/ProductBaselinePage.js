@@ -8,6 +8,12 @@ import {
   BASELINE_TARIFF_SESSION_KEY,
 } from '../utils/baselineTradeSignals';
 import {
+  buildBaselineExportBundle,
+  exportBaselineJson,
+  exportBaselineExcel,
+  exportBaselinePdf,
+} from '../utils/baselineExport';
+import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -667,6 +673,59 @@ function ProductBaselinePage() {
 
   const displayCompany = company?.company_name || company?.email || user?.company || 'Your company';
 
+  const handleBaselineExport = useCallback(
+    (kind) => {
+      const bundle = buildBaselineExportBundle({
+        exportedAt: new Date().toISOString(),
+        displayCompany,
+        companyKey,
+        selectedProductId,
+        productName: productConfig?.name,
+        baseCostUsd: productConfig?.baseCostUsd,
+        simulationResults,
+        comparisonRowsAll,
+        tradeCtxByRowId,
+      });
+      const slug = selectedProductId;
+      try {
+        if (kind === 'json') exportBaselineJson(bundle, slug);
+        else if (kind === 'excel') exportBaselineExcel(bundle, slug);
+        else if (kind === 'pdf') exportBaselinePdf(bundle, slug);
+      } catch (err) {
+        console.error(err);
+        window.alert(`Export failed: ${err?.message || 'Unknown error'}`);
+      }
+    },
+    [
+      displayCompany,
+      companyKey,
+      selectedProductId,
+      productConfig,
+      simulationResults,
+      comparisonRowsAll,
+      tradeCtxByRowId,
+    ]
+  );
+
+  const exportButtons = (variant) => (
+    <div
+      className={`baseline-export-toolbar${variant === 'dark' ? ' baseline-export-toolbar--onDark' : ''}`}
+      role="group"
+      aria-label="Export baseline data"
+    >
+      <span className="baseline-export-toolbar__label">Export</span>
+      <button type="button" className="btn btn--outline btn--sm" onClick={() => handleBaselineExport('json')}>
+        JSON
+      </button>
+      <button type="button" className="btn btn--outline btn--sm" onClick={() => handleBaselineExport('excel')}>
+        Excel
+      </button>
+      <button type="button" className="btn btn--outline btn--sm" onClick={() => handleBaselineExport('pdf')}>
+        PDF
+      </button>
+    </div>
+  );
+
   return (
     <main className="page page--wide baseline-page">
       <header className="page__header">
@@ -845,6 +904,19 @@ function ProductBaselinePage() {
                 </div>
               </div>
 
+              <div className="baseline-export-card glass-card">
+                <div className="baseline-export-card__row">
+                  <div>
+                    <strong>Download results</strong>
+                    <p className="muted baseline-export-card__hint">
+                      JSON, Excel (.xlsx), or PDF — includes this rollup, quoted line items, and the full scenario comparator
+                      table from below.
+                    </p>
+                  </div>
+                  {exportButtons('light')}
+                </div>
+              </div>
+
               <div className="baseline-donut-wrap">
                 <h4 style={{ margin: '0 0 0.5rem' }}>Quoted spend by category (last run)</h4>
                 {pieSlices.length === 0 ? (
@@ -926,12 +998,18 @@ function ProductBaselinePage() {
 
       <section className="panel baseline-comparator-deck baseline-viz-banner">
         <div className="baseline-comparator-head">
-          <h2 style={{ margin: 0 }}>Scenario comparator & charts</h2>
-          <p className="muted baseline-comparator-sub">
-            Toggle which mixes appear in bars. Greedy presets explore price bounds; yellow row shows deltas vs cheapest visible mix.
-            Each scenario row estimates a transport lane (for tariff scoring) and quote-currency weights —{' '}
-            <Link to="/tariff">Tariff map</Link> and <Link to="/fx">FX desk</Link> links open prefilled detail for that mix.
-          </p>
+          <div className="baseline-comparator-head__text">
+            <h2 style={{ margin: 0 }}>Scenario comparator & charts</h2>
+            <p className="muted baseline-comparator-sub">
+              Toggle which mixes appear in bars. Greedy presets explore price bounds; yellow row shows deltas vs cheapest visible mix.
+              Each scenario row estimates a transport lane (for tariff scoring) and quote-currency weights —{' '}
+              <Link to="/tariff">Tariff map</Link> and <Link to="/fx">FX desk</Link> links open prefilled detail for that mix.
+            </p>
+            <p className="muted baseline-comparator-sub baseline-export-global-hint">
+              Use <strong>Export</strong> for JSON / Excel / PDF anytime — after you run a simulation, exports also include line-level detail and the interpretation block.
+            </p>
+          </div>
+          {exportButtons('dark')}
         </div>
 
         <div className="baseline-scenario-scroll">

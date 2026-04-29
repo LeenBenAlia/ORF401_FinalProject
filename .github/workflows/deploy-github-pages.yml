@@ -8,8 +8,9 @@
 # If you rename the repository, update PUBLIC_URL below to /YourNewRepoName
 #
 # Optional: add repo secret REACT_APP_API_BASE_URL with your hosted FastAPI root
-# (e.g. https://your-api.onrender.com/api/v1/) so login and quotes hit a real backend.
-# Without it, GitHub Pages uses built-in demo logins only (see frontend/src/githubPagesDemo.js).
+# (e.g. https://your-api.onrender.com/api/v1/) so login, upload, and quotes hit a real backend.
+# Without it, the build uses browser-only demo quotes/uploads (sessionStorage) — see frontend/src/demoQuoteStore.js.
+# If the secret is wrong or the API returns HTML, remove/fix the secret and redeploy.
 name: Deploy frontend to GitHub Pages
 
 on:
@@ -43,6 +44,8 @@ jobs:
         env:
           CI: false
           PUBLIC_URL: /ORF401_FinalProject
+          # Enables browser-only demo quotes/uploads when no hosted API secret is set.
+          REACT_APP_STATIC_HOSTING: "true"
           REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
         run: |
           npm ci
