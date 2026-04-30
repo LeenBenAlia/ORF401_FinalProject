@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import api, { formatApiError } from '../api';
 import { useAuth } from '../auth';
 import { usesStaticGithubPagesDemo } from '../githubPagesDemo';
@@ -7,10 +7,12 @@ import {
   buildDemoQuoteRecordsFromFiles,
   getDemoGroupNames,
   addDemoExtraGroup,
+  deleteDemoFolder,
   getDemoProducts,
   addDemoProduct,
 } from '../demoQuoteStore';
 import VerbalMeetingSection from './VerbalMeetingSection';
+import { flattenQuoteRecordsForPreview } from '../utils/uploadQuotePreview';
 
 function mergeQuoteFiles(prev, added) {
   const map = new Map();
@@ -21,6 +23,41 @@ function mergeQuoteFiles(prev, added) {
     }
   }
   return Array.from(map.values());
+}
+
+function formatPreviewCell(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function UploadQuoteSheetPreview({ data }) {
+  const { columns, rows } = useMemo(() => flattenQuoteRecordsForPreview(data), [data]);
+  if (!columns.length) {
+    return <p className="muted">Nothing to show in the spreadsheet preview.</p>;
+  }
+  return (
+    <div className="upload-sheet-scroll">
+      <table className="upload-sheet-table">
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={c}>{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={data[i]?.id ?? `row-${i}`}>
+              {columns.map((c) => (
+                <td key={c}>{formatPreviewCell(row[c])}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function UploadQuote() {
@@ -42,8 +79,9 @@ function UploadQuote() {
   const [missingFields, setMissingFields] = useState([]);
   const [exportLayout, setExportLayout] = useState('same_sheet');
   const [groupBy, setGroupBy] = useState('supplier');
-  const [outputMode, setOutputMode] = useState('excel');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  /** Digitized results preview: spreadsheet-style, JSON, or side-by-side */
+  const [previewMode, setPreviewMode] = useState('sheet');
   const [folderTileDrag, setFolderTileDrag] = useState(null);
   const [manualProductLine, setManualProductLine] = useState('');
   const [productCatalog, setProductCatalog] = useState([]);
@@ -163,6 +201,42 @@ function UploadQuote() {
     }
   };
 
+  const deleteFolder = async (folderName) => {
+    const g = String(folderName || '').trim();
+    if (!g || g === 'default') {
+      setMessage('The default folder cannot be deleted.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete folder “${g}”? Quotes saved in this folder will move to “default”.`
+      )
+    ) {
+      return;
+    }
+    try {
+      if (usesStaticGithubPagesDemo()) {
+        if (!company?.id) {
+          setMessage('Sign in with a demo account first.');
+          return;
+        }
+        deleteDemoFolder(company.id, g);
+        await loadGroups();
+        setGroupKey((prev) => (prev === g ? 'default' : prev));
+        setMessage(`Folder “${g}” removed. Quotes in it were moved to “default”.`);
+        window.dispatchEvent(new CustomEvent('quotes:changed'));
+        return;
+      }
+      await api.delete('/groups', { params: { group_name: g } });
+      await loadGroups();
+      setGroupKey((prev) => (prev === g ? 'default' : prev));
+      setMessage(`Folder “${g}” removed. Quotes in it were moved to “default”.`);
+      window.dispatchEvent(new CustomEvent('quotes:changed'));
+    } catch (error) {
+      setMessage(formatApiError(error));
+    }
+  };
+
   const addFilesFromList = useCallback((fileList) => {
     const next = Array.from(fileList || []).filter(
       (f) => f.name && /\.(pdf|xlsx|xls|csv|eml|txt)$/i.test(f.name)
@@ -251,7 +325,7 @@ function UploadQuote() {
     formData.append('product_name', productName);
     formData.append('product_description', productDescription);
     formData.append('group_key', groupKey);
-    formData.append('output_mode', outputMode);
+    formData.append('output_mode', 'excel');
     formData.append('manual_product', manualProductLine.trim());
 
     try {
@@ -329,7 +403,7 @@ function UploadQuote() {
               type="button"
               className={`upload-folder-tile${groupKey === g ? " upload-folder-tile--active" : ""}${
                 folderTileDrag === g ? " upload-folder-tile--dropping" : ""
-              }`}
+              }${g !== 'default' ? ' upload-folder-tile--deletable' : ''}`}
               onClick={() => setGroupKey(g)}
               onDragEnter={(e) => {
                 e.preventDefault();
@@ -354,6 +428,29 @@ function UploadQuote() {
                 }
               }}
             >
+              {g !== 'default' && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="upload-folder-tile__delete"
+                  title={`Delete folder “${g}”`}
+                  aria-label={`Delete folder ${g}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteFolder(g);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      deleteFolder(g);
+                    }
+                  }}
+                >
+                  ×
+                </span>
+              )}
               <span className="upload-folder-tile__name">{g}</span>
               {groupKey === g && <span className="upload-folder-tile__badge">selected</span>}
             </button>
@@ -548,13 +645,6 @@ function UploadQuote() {
               Product name
               <input value={productName} onChange={(e) => setProductName(e.target.value)} />
             </label>
-            <label>
-              Output mode
-              <select value={outputMode} onChange={(e) => setOutputMode(e.target.value)}>
-                <option value="excel">Excel-ready output</option>
-                <option value="code">Code/JSON output</option>
-              </select>
-            </label>
           </div>
           <label>
             Product description (Liz uses this to recommend fields)
@@ -595,9 +685,54 @@ function UploadQuote() {
 
       {data.length > 0 && (
         <div className="results-card">
-          <h3>Digitized Quote Data ({data.length} files)</h3>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-          <div className="form-grid">
+          <h3>Digitized quote data ({data.length} file{data.length === 1 ? '' : 's'})</h3>
+          <p className="muted upload-preview-lede">
+            Spreadsheet preview uses metadata and <strong>extracted</strong> fields only (no duplicate{' '}
+            <code className="quote-library-code">selected_fields</code>). JSON shows the full server payload.
+          </p>
+          <div className="upload-preview-mode" role="tablist" aria-label="Preview format">
+            {[
+              { id: 'sheet', label: 'Spreadsheet preview' },
+              { id: 'json', label: 'JSON' },
+              { id: 'both', label: 'Both' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                role="tab"
+                aria-selected={previewMode === opt.id}
+                className={`upload-preview-mode__btn${previewMode === opt.id ? ' upload-preview-mode__btn--active' : ''}`}
+                onClick={() => setPreviewMode(opt.id)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div
+            className={
+              previewMode === 'both'
+                ? 'upload-preview-dual'
+                : previewMode === 'json'
+                  ? 'upload-preview-single upload-preview-single--json'
+                  : 'upload-preview-single upload-preview-single--sheet'
+            }
+          >
+            {(previewMode === 'sheet' || previewMode === 'both') && (
+              <div className="upload-preview-panel">
+                <h4 className="upload-preview-panel__title">Spreadsheet-style preview</h4>
+                <UploadQuoteSheetPreview data={data} />
+              </div>
+            )}
+            {(previewMode === 'json' || previewMode === 'both') && (
+              <div className="upload-preview-panel">
+                <h4 className="upload-preview-panel__title">JSON (full records)</h4>
+                <pre className="upload-json-preview" tabIndex={0}>
+                  {JSON.stringify(data, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+          <div className="form-grid upload-export-row">
             <label>
               Excel export layout
               <select value={exportLayout} onChange={(e) => setExportLayout(e.target.value)}>
@@ -617,7 +752,9 @@ function UploadQuote() {
               </select>
             </label>
           </div>
-          <button onClick={handleExportExcel}>Export to Excel</button>
+          <button type="button" onClick={handleExportExcel}>
+            Export to Excel
+          </button>
         </div>
       )}
     </section>

@@ -6,6 +6,8 @@ import {
   buildTariffLink,
   buildFxLinkFromContext,
   BASELINE_TARIFF_SESSION_KEY,
+  inferTransportRoute,
+  tariffRiskScoreForRoute,
 } from '../utils/baselineTradeSignals';
 import {
   buildBaselineExportBundle,
@@ -38,6 +40,32 @@ function toUsd(amount, currency) {
 
 function lineUsd(item) {
   return toUsd(item.unitCost * item.quantity, item.currency);
+}
+
+/** Per-line tariff score from origin country only (same lane rules as Tariff desk). */
+function lineTariffScore(item) {
+  const route = inferTransportRoute([item.countryOfQuote]);
+  return tariffRiskScoreForRoute(route);
+}
+
+/** Non-USD line value in USD — proxy for FX mix exposure when building a greedy BOM. */
+function lineFxExposureUsd(item) {
+  const c = (item.currency || 'USD').toUpperCase();
+  if (c === 'USD') return 0;
+  return lineUsd(item);
+}
+
+/**
+ * Lower is better: balances worse tariff score (higher route penalty) with non-USD notional.
+ * Same category min/max counts as other greedy “low” mixes.
+ */
+function lineTradeoffBadness(item, maxLineUsdInCategory) {
+  const t = lineTariffScore(item);
+  const fx = lineFxExposureUsd(item);
+  const normT = (100 - t) / 35;
+  const denom = maxLineUsdInCategory > 0 ? maxLineUsdInCategory : 1;
+  const normFx = fx / denom;
+  return 0.5 * normT + 0.5 * normFx;
 }
 
 function formatUsd(n) {
@@ -398,21 +426,48 @@ function buildGreedySelection(itemsByCategory, productConfig, mode) {
       out[cat] = [];
       return;
     }
-    const items = [...raw].sort((a, b) => (mode === 'high' ? b._line - a._line : a._line - b._line));
+    const maxLine = Math.max(...raw.map((x) => x._line), 1e-9);
 
-    if (mode === 'low') {
-      const need = Math.max(cfg.minItems, 0);
-      if (need === 0 && !cfg.required) {
-        out[cat] = [];
-        return;
-      }
-      const take = Math.min(Math.max(need, cfg.required ? 1 : 0), items.length, cfg.maxItems);
-      out[cat] = items.slice(0, take).map((i) => i.sku);
+    let items;
+    if (mode === 'high') {
+      items = [...raw].sort((a, b) => b._line - a._line);
+    } else if (mode === 'low') {
+      items = [...raw].sort((a, b) => a._line - b._line);
+    } else if (mode === 'tariff') {
+      items = [...raw].sort((a, b) => {
+        const dt = lineTariffScore(b) - lineTariffScore(a);
+        if (dt !== 0) return dt;
+        return a._line - b._line;
+      });
+    } else if (mode === 'fx') {
+      items = [...raw].sort((a, b) => {
+        const df = lineFxExposureUsd(a) - lineFxExposureUsd(b);
+        if (df !== 0) return df;
+        return a._line - b._line;
+      });
+    } else if (mode === 'tradeoff') {
+      items = [...raw].sort((a, b) => {
+        const d = lineTradeoffBadness(a, maxLine) - lineTradeoffBadness(b, maxLine);
+        if (d !== 0) return d;
+        return a._line - b._line;
+      });
+    } else {
+      items = [...raw].sort((a, b) => a._line - b._line);
+    }
+
+    if (mode === 'high') {
+      const takeHigh = Math.min(cfg.maxItems, items.length);
+      out[cat] = items.slice(0, takeHigh).map((i) => i.sku);
       return;
     }
 
-    const takeHigh = Math.min(cfg.maxItems, items.length);
-    out[cat] = items.slice(0, takeHigh).map((i) => i.sku);
+    const need = Math.max(cfg.minItems, 0);
+    if (need === 0 && !cfg.required) {
+      out[cat] = [];
+      return;
+    }
+    const take = Math.min(Math.max(need, cfg.required ? 1 : 0), items.length, cfg.maxItems);
+    out[cat] = items.slice(0, take).map((i) => i.sku);
   });
   return out;
 }
@@ -430,7 +485,9 @@ function ProductBaselinePage() {
   const [simulationResults, setSimulationResults] = useState(null);
   const [savedComparisons, setSavedComparisons] = useState([]);
   const [newComparisonLabel, setNewComparisonLabel] = useState('');
-  const [visibleScenarioIds, setVisibleScenarioIds] = useState(() => new Set(['preset', 'min', 'max', 'manual']));
+  const [visibleScenarioIds, setVisibleScenarioIds] = useState(
+    () => new Set(['preset', 'min', 'max', 'minTariff', 'minFx', 'tradeoff', 'manual'])
+  );
 
   const productConfig = PRODUCT_CONFIGURATIONS[selectedProductId];
 
@@ -482,15 +539,42 @@ function ProductBaselinePage() {
 
     const lowMap = buildGreedySelection(itemsByCategory, productConfig, 'low');
     const highMap = buildGreedySelection(itemsByCategory, productConfig, 'high');
+    const minTariffMap = buildGreedySelection(itemsByCategory, productConfig, 'tariff');
+    const minFxMap = buildGreedySelection(itemsByCategory, productConfig, 'fx');
+    const tradeoffMap = buildGreedySelection(itemsByCategory, productConfig, 'tradeoff');
 
     const presetSnap = computeBomSnapshot(presetMap, productConfig, availableItems);
     const lowSnap = computeBomSnapshot(lowMap, productConfig, availableItems);
     const highSnap = computeBomSnapshot(highMap, productConfig, availableItems);
+    const minTariffSnap = computeBomSnapshot(minTariffMap, productConfig, availableItems);
+    const minFxSnap = computeBomSnapshot(minFxMap, productConfig, availableItems);
+    const tradeoffSnap = computeBomSnapshot(tradeoffMap, productConfig, availableItems);
     const manualSnap = computeBomSnapshot(selectedSkuByCat, productConfig, availableItems);
 
     return [
       { id: 'preset', label: 'Sample preset BOM', color: CHART_COLORS[0], skuByCat: presetMap, ...presetSnap },
       { id: 'min', label: 'Greedy lowest-cost mix', color: CHART_COLORS[1], skuByCat: lowMap, ...lowSnap },
+      {
+        id: 'minTariff',
+        label: 'Greedy mix · lowest tariff exposure (per-origin)',
+        color: CHART_COLORS[4],
+        skuByCat: minTariffMap,
+        ...minTariffSnap,
+      },
+      {
+        id: 'minFx',
+        label: 'Greedy mix · lowest FX exposure (USD lines first)',
+        color: CHART_COLORS[5],
+        skuByCat: minFxMap,
+        ...minFxSnap,
+      },
+      {
+        id: 'tradeoff',
+        label: 'Greedy mix · tariff / FX trade-off (50/50 score)',
+        color: CHART_COLORS[6],
+        skuByCat: tradeoffMap,
+        ...tradeoffSnap,
+      },
       { id: 'max', label: 'Greedy highest-cost mix', color: CHART_COLORS[2], skuByCat: highMap, ...highSnap },
       { id: 'manual', label: 'Your current checklist (live)', color: CHART_COLORS[3], skuByCat: selectedSkuByCat, ...manualSnap },
     ];
@@ -501,7 +585,7 @@ function ProductBaselinePage() {
       savedComparisons.map((s, idx) => ({
         ...s,
         id: `saved-${s.slotId}`,
-        color: CHART_COLORS[(idx + 4) % CHART_COLORS.length],
+        color: FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length],
       })),
     [savedComparisons]
   );
@@ -733,6 +817,8 @@ function ProductBaselinePage() {
         <h1>Cost baseline builder</h1>
         <p className="lede lede--muted">
           Pick a platform, compare simulated BOM snapshots (preset vs greedy mixes vs your picks), then run a rollup.
+          Extra greedy rows use the same quantity rules as lowest-cost but rank lines by tariff lane score, USD-first FX
+          weight, or an even blend of both — overall lane/FX scores still roll up from the full mix (Tariff desk rules).
           Figures are illustrative for coursework only.
         </p>
       </header>
@@ -1001,7 +1087,9 @@ function ProductBaselinePage() {
           <div className="baseline-comparator-head__text">
             <h2 style={{ margin: 0 }}>Scenario comparator & charts</h2>
             <p className="muted baseline-comparator-sub">
-              Toggle which mixes appear in bars. Greedy presets explore price bounds; yellow row shows deltas vs cheapest visible mix.
+              Toggle which mixes appear in bars. Greedy presets explore price bounds; additional greedy rows rank the same
+              allowed counts by tariff lane (per origin), USD-first FX weight, or a 50/50 blend — yellow column shows deltas vs
+              cheapest visible mix.
               Each scenario row estimates a transport lane (for tariff scoring) and quote-currency weights —{' '}
               <Link to="/tariff">Tariff map</Link> and <Link to="/fx">FX desk</Link> links open prefilled detail for that mix.
             </p>

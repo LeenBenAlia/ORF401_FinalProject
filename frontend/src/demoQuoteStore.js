@@ -116,6 +116,21 @@ export function addDemoExtraGroup(companyId, name) {
   writeExtraGroupsMap(map);
 }
 
+/** Remove a folder from the demo picker and move quotes in that folder to ``default``. */
+export function deleteDemoFolder(companyId, folderName) {
+  const raw = String(folderName || '').trim();
+  if (!raw || raw === 'default') return;
+  const map = readExtraGroupsMap();
+  const extras = Array.isArray(map[companyId]) ? [...map[companyId]] : [];
+  const filtered = extras.filter((g) => g !== raw);
+  map[companyId] = filtered;
+  writeExtraGroupsMap(map);
+  const next = readAll().map((q) =>
+    q.company_id === companyId && !q.trashed && q.group_key === raw ? { ...q, group_key: 'default' } : q
+  );
+  writeAll(next);
+}
+
 export function assignDemoQuotesToGroup(companyId, quoteIds, groupName) {
   const ids = new Set(quoteIds.map((x) => Number(x)));
   const next = readAll().map((q) =>

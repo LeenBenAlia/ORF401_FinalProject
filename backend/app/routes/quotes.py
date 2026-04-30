@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Header
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Header, Query
 from typing import List, Dict, Any, Optional
 import os
 import uuid
@@ -817,6 +817,37 @@ async def create_group(payload: GroupCreateRequest, authorization: str = Header(
         GROUP_STORE[company_id].append(group_name)
     _persist_quote_state()
     return {"groups": GROUP_STORE[company_id]}
+
+
+@router.delete("/groups")
+async def delete_group(group_name: str = Query(...), authorization: str = Header(None)):
+    """Remove a folder from the picker; quotes in that folder move to ``default``."""
+    company = get_company_from_auth_header(authorization)
+    company_id = company["id"]
+    raw = (group_name or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Group name is required.")
+    if raw == "default":
+        raise HTTPException(status_code=400, detail="The default folder cannot be deleted.")
+    if raw == RESERVED_TRASH_FOLDER or raw.startswith("__"):
+        raise HTTPException(status_code=400, detail="That folder is reserved for the system.")
+
+    if company_id not in GROUP_STORE:
+        GROUP_STORE[company_id] = ["default"]
+    lst = GROUP_STORE[company_id]
+    if raw not in lst:
+        raise HTTPException(status_code=404, detail=f"No folder named “{raw}”.")
+
+    GROUP_STORE[company_id] = [g for g in lst if g != raw]
+
+    for quote in QUOTE_STORE:
+        if quote.get("company_id") != company_id:
+            continue
+        if quote.get("group_key") == raw:
+            quote["group_key"] = "default"
+
+    _persist_quote_state()
+    return {"groups": GROUP_STORE[company_id], "moved_quotes_to_default": True}
 
 
 @router.get("/products")
